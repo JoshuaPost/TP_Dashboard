@@ -1,0 +1,432 @@
+# compile_rules.py
+# Compile "Rule Tables.xlsx" (tabs 0..6) into a normalized rules.json
+# Uses country names as primary identifiers.
+
+import argparse, json, sys, calendar, re
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+import pandas as pd
+
+# ---------------------------- Constants ----------------------------
+
+class SheetNames:
+    COUNTRY_REGIONS = "0. Iso Codes"  # Maps countries to regions
+    LF_THRESHOLD = "1.LFR Threshold"
+    LF_DEADLINES = "2. LFR Deadlines"
+    MF_THRESHOLD = "3. MF_Thresholds"
+    MF_DEADLINES = "4. MF_Deadlines"
+    TP_FORMS = "5. TPForms_deadlines"
+    CBCR = "6. CBCR Notifications"
+
+class DocType:
+    LF = "LF"
+    MF = "MF"
+    FM = "Fm"
+
+class RequirementStatus:
+    YES_VALUES = ("yes", "y", "true", "1")
+    NO_VALUES = ("no", "n", "false", "0")
+
+# ----------------------------- helpers -----------------------------
+
+def clean(x) -> str:
+    """Clean and normalize input value to string."""
+    if pd.isna(x): return ""
+    return str(x).strip()
+
+def as_int(x) -> Optional[int]:
+    """Convert value to integer, return None if invalid."""
+    try:
+        if x == "" or pd.isna(x): return None
+        return int(float(x))
+    except Exception:
+        return None
+
+def as_float(x) -> Optional[float]:
+    """Convert value to float, return None if invalid."""
+    try:
+        if x == "" or pd.isna(x): return None
+        return float(x)
+    except Exception:
+        return None
+
+def norm_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize column names by stripping whitespace."""
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+def find_col(cols: List[str], *candidates: str) -> Optional[str]:
+    """Return first case-insensitive exact match; fallback to substring contains."""
+    lc = {c.lower(): c for c in cols}
+    # First pass: exact match
+    for cand in candidates:
+        key = cand.lower()
+        if key in lc: 
+            return lc[key]
+    # Second pass: substring match
+    for c in cols:
+        cl = c.lower()
+        for cand in candidates:
+            if cand.lower() in cl: 
+                return c
+    return None
+
+def month_name(m: Optional[int]) -> str:
+    """Get abbreviated month name for month number."""
+    return calendar.month_abbr[m] if m and 1 <= m <= 12 else ""
+
+# --------------------------- Country/Region loading ---------------------------
+
+def load_country_map(df_country: pd.DataFrame, debug: bool = False) -> Dict[str, str]:
+    """Load country name to region mapping from country/region sheet."""
+    df_country = norm_cols(df_country)
+    country_col = find_col(df_country.columns, "Country", "Jurisdiction")
+    region_col = find_col(df_country.columns, "Region")
+    
+    if debug:
+        print(f"[country_map] columns: country={country_col}, region={region_col}")
+    
+    if not country_col:
+        raise ValueError("Country/Region sheet must contain a 'Country' column.")
+
+    name_to_region = {}
+    for _, r in df_country.iterrows():
+        nm = clean(r.get(country_col))
+        reg = clean(r.get(region_col))
+        if nm:
+            name_to_region[nm.lower()] = reg
+    
+    return name_to_region
+
+def ensure_country(registry: Dict[str, Dict], j_value: str, 
+                  name_to_region: Dict[str, str], debug: bool = False) -> Optional[Dict[str, Any]]:
+    """Ensure country exists in registry, create if needed. Uses country name as identifier."""
+    if not j_value:
+        return None
+    
+    nm = clean(j_value)
+    key = nm.lower()
+    
+    if key not in registry:
+        region = name_to_region.get(key, "")
+        if not region and debug:
+            print(f"[warn] No region found for country: {nm}")
+        
+        registry[key] = {
+            "name": nm,  # Country name as primary identifier
+            "region": region,
+            "lf_tpd_thresholds": [],
+            "lf_tpd_deadlines": [],
+            "mf_thresholds": [],
+            "mf_deadlines": [],
+            "tp_forms": [],
+            "cbcr": None
+        }
+    
+    return registry[key]
+
+# --------------------------- loaders -------------------------------
+
+def load_sheet(xls: pd.ExcelFile, name: str, required: bool = True, debug: bool = False) -> pd.DataFrame:
+    """Load and normalize a sheet from Excel file."""
+    if name not in xls.sheet_names:
+        if required:
+            raise ValueError(f"Missing required sheet: {name}")
+        if debug:
+            print(f"[warn] sheet not found (optional): {name}")
+        return pd.DataFrame()
+    
+    df = pd.read_excel(xls, sheet_name=name)
+    return norm_cols(df)
+
+def pack_threshold_row(r: Any) -> Dict[str, Any]:
+    """Pack threshold data from row into dictionary."""
+    return {
+        "group_id": clean(r.get("GroupID")),
+        "seq": as_int(r.get("Seq")) or 0,
+        "requirement_applies": clean(r.get("RequirementApplies")),  # Yes/No
+        "op": clean(r.get("ThresholdOperator")),                    # >=, >, none, ...
+        "amount": as_float(r.get("ThresholdAmount")),
+        "currency": clean(r.get("ThresholdCurrency")),
+        "metric": clean(r.get("ThresholdMetric")),
+        "metric_basis": clean(r.get("MetricBasisText")),
+        "note": clean(r.get("DisplayNote")),
+    }
+
+def pack_deadline_row(r: Any) -> Dict[str, Any]:
+    """Pack deadline data from row into dictionary."""
+    m = as_int(r.get("Month"))
+    d = as_int(r.get("Day"))
+    offset_days = as_int(r.get("OffsetDays"))
+    offset_months = as_int(r.get("OffsetMonths"))
+    
+    return {
+        "group_id": clean(r.get("GroupID")),
+        "seq": as_int(r.get("Seq")) or 0,
+        "requirement_type": clean(r.get("RequirementType")),   # HARD/SOFT/N/A
+        "deadline_kind": clean(r.get("DeadlineKind")),         # FIXED_DATE, RETURN_DUE_DATE, etc.
+        "month": m,
+        "day": d,
+        "month_name": month_name(m) if m else "",
+        "event_anchor": clean(r.get("EventAnchor")),           # FYE, AuditNotice, RequestDate, ...
+        "offset_days": offset_days,
+        "offset_months": offset_months,
+        "text": clean(r.get("DisplayText")),
+    }
+
+def pack_form_row(r: Any) -> Dict[str, Any]:
+    """Pack TP form data from row into dictionary."""
+    base = pack_deadline_row(r)
+    base.update({
+        "name": clean(r.get("FormName")),
+        "included_in_return": clean(r.get("IncludedInReturn")),
+    })
+    return base
+
+def pack_cbcr_row(r: Any) -> Dict[str, Any]:
+    """Pack CbCR notification data from row into dictionary."""
+    m = as_int(r.get("Month"))
+    return {
+        "required": clean(r.get("Required")),                       # Yes/No
+        "requirement_type": clean(r.get("RequirementType")),        # HARD/SOFT/N/A
+        "included_in_cit": clean(r.get("IncludedInCITReturn")),    # Yes/No
+        "annual": clean(r.get("AnnualNotification")),              # Yes/No
+        "single_filer_ok": clean(r.get("SingleFilerAllowed")),     # Yes/No
+        "deadline_kind": clean(r.get("DeadlineKind")),
+        "month": m,
+        "day": as_int(r.get("Day")),
+        "month_name": month_name(m) if m else "",
+        "event_anchor": clean(r.get("EventAnchor")),
+        "offset_days": as_int(r.get("OffsetDays")),
+        "offset_months": as_int(r.get("OffsetMonths")),
+        "text": clean(r.get("DisplayText")),
+    }
+
+def validate_threshold_data(row: Dict[str, Any], debug: bool = False) -> bool:
+    """Validate threshold row has required fields when applicable."""
+    if row.get("requirement_applies", "").lower() in RequirementStatus.YES_VALUES:
+        if row.get("op") and not row.get("amount"):
+            if debug:
+                print(f"Warning: Threshold operator without amount in group {row.get('group_id')}")
+            return False
+    return True
+
+# ------------------------ compiler core ----------------------------
+
+def compile_rules(excel_path: Path, fye: str = "", debug: bool = False) -> Dict[str, Any]:
+    """
+    Compile transfer pricing rules from Excel sheets into JSON format.
+    
+    Args:
+        excel_path: Path to Rule Tables.xlsx
+        fye: Fiscal year-end (YYYY-MM-DD) for relative deadlines
+        debug: Enable verbose output
+        
+    Returns:
+        Dictionary with compiled rules for all countries
+    """
+    xls = pd.ExcelFile(excel_path)
+
+    # Load all sheets (0..6)
+    df_countries = load_sheet(xls, SheetNames.COUNTRY_REGIONS, required=True, debug=debug)
+    df_lf_th = load_sheet(xls, SheetNames.LF_THRESHOLD, required=True, debug=debug)
+    df_lf_dl = load_sheet(xls, SheetNames.LF_DEADLINES, required=True, debug=debug)
+    df_mf_th = load_sheet(xls, SheetNames.MF_THRESHOLD, required=True, debug=debug)
+    df_mf_dl = load_sheet(xls, SheetNames.MF_DEADLINES, required=True, debug=debug)
+    df_forms = load_sheet(xls, SheetNames.TP_FORMS, required=True, debug=debug)
+    df_cbcr = load_sheet(xls, SheetNames.CBCR, required=True, debug=debug)
+
+    if debug:
+        print("[sizes]",
+              f"countries={len(df_countries)} lf_th={len(df_lf_th)} lf_dl={len(df_lf_dl)}",
+              f"mf_th={len(df_mf_th)} mf_dl={len(df_mf_dl)} forms={len(df_forms)} cbcr={len(df_cbcr)}")
+
+    # Load country to region mapping
+    name_to_region = load_country_map(df_countries, debug=debug)
+    countries = {}
+    unmatched = set()
+
+    # --- LF / TPD Thresholds (DocTypeNormalized should be LF) ---
+    if not df_lf_th.empty:
+        for _, r in df_lf_th.iterrows():
+            j = clean(r.get("Jurisdiction"))
+            c = ensure_country(countries, j, name_to_region, debug)
+            if not c:
+                unmatched.add(j)
+                continue
+            # Visibility: hide groups when RequirementApplies = "No"
+            row = pack_threshold_row(r)
+            row["doc_type"] = clean(r.get("DocTypeNormalized") or DocType.LF)
+            if validate_threshold_data(row, debug):
+                c["lf_tpd_thresholds"].append(row)
+
+    # --- LF / TPD Deadlines ---
+    if not df_lf_dl.empty:
+        for _, r in df_lf_dl.iterrows():
+            j = clean(r.get("Jurisdiction"))
+            c = ensure_country(countries, j, name_to_region, debug)
+            if not c:
+                unmatched.add(j)
+                continue
+            row = pack_deadline_row(r)
+            row["doc_type"] = clean(r.get("DocTypeNormalized") or DocType.LF)
+            c["lf_tpd_deadlines"].append(row)
+
+    # --- MF Thresholds ---
+    if not df_mf_th.empty:
+        for _, r in df_mf_th.iterrows():
+            j = clean(r.get("Jurisdiction"))
+            c = ensure_country(countries, j, name_to_region, debug)
+            if not c:
+                unmatched.add(j)
+                continue
+            row = pack_threshold_row(r)
+            row["doc_type"] = clean(r.get("DocTypeNormalized") or DocType.MF)
+            if validate_threshold_data(row, debug):
+                c["mf_thresholds"].append(row)
+
+    # --- MF Deadlines ---
+    if not df_mf_dl.empty:
+        for _, r in df_mf_dl.iterrows():
+            j = clean(r.get("Jurisdiction"))
+            c = ensure_country(countries, j, name_to_region, debug)
+            if not c:
+                unmatched.add(j)
+                continue
+            row = pack_deadline_row(r)
+            row["doc_type"] = clean(r.get("DocTypeNormalized") or DocType.MF)
+            c["mf_deadlines"].append(row)
+
+    # --- TP Forms / Disclosures ---
+    if not df_forms.empty:
+        for _, r in df_forms.iterrows():
+            j = clean(r.get("Jurisdiction"))
+            c = ensure_country(countries, j, name_to_region, debug)
+            if not c:
+                unmatched.add(j)
+                continue
+            row = pack_form_row(r)
+            row["doc_type"] = clean(r.get("DocTypeNormalized") or DocType.FM)
+            c["tp_forms"].append(row)
+
+    # --- CbCR Notifications ---
+    if not df_cbcr.empty:
+        for _, r in df_cbcr.iterrows():
+            j = clean(r.get("Jurisdiction"))
+            c = ensure_country(countries, j, name_to_region, debug)
+            if not c:
+                unmatched.add(j)
+                continue
+            row = pack_cbcr_row(r)
+            
+            # Hide entirely if neither required nor included in CIT
+            req = row.get("required", "").lower()
+            in_cit = row.get("included_in_cit", "").lower()
+            
+            is_required = req in RequirementStatus.YES_VALUES
+            is_in_cit = in_cit in RequirementStatus.YES_VALUES
+            
+            if not (is_required or is_in_cit):
+                continue  # Hide if neither required nor included in CIT
+                
+            c["cbcr"] = row  # single object per country; last one wins if duplicates
+
+    # Sort groups by group_id + seq for stable display
+    def sort_group(items: List[Dict]) -> List[Dict]:
+        """Sort items by group_id and sequence number."""
+        return sorted(items, key=lambda x: (x.get("group_id", ""), x.get("seq", 0)))
+
+    for k, c in countries.items():
+        c["lf_tpd_thresholds"] = sort_group(c["lf_tpd_thresholds"])
+        c["lf_tpd_deadlines"] = sort_group(c["lf_tpd_deadlines"])
+        c["mf_thresholds"] = sort_group(c["mf_thresholds"])
+        c["mf_deadlines"] = sort_group(c["mf_deadlines"])
+        c["tp_forms"] = sort_group(c["tp_forms"])
+        # cbcr is a single dict (or None)
+
+    compiled = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "excel_source": str(excel_path),
+        "fye": fye or "",
+        "countries": sorted(countries.values(), key=lambda x: (x["region"], x["name"].lower()))
+    }
+
+    if debug:
+        print(f"[result] countries compiled: {len(compiled['countries'])}")
+        if unmatched:
+            bad = sorted({u for u in unmatched if u})
+            print(f"[warn] jurisdictions not matched to Country/Region mapping (sample): {bad[:20]}")
+
+    return compiled
+
+# ------------------------------ CLI -------------------------------
+
+@dataclass
+class CompilerConfig:
+    """Configuration for the rules compiler."""
+    excel_path: Path
+    output_path: Path
+    fye: str = ""
+    debug: bool = False
+    
+    def validate(self):
+        """Validate configuration settings."""
+        if not self.excel_path.exists():
+            raise FileNotFoundError(f"Excel not found: {self.excel_path}")
+
+def main():
+    """Main CLI entry point for the rules compiler."""
+    ap = argparse.ArgumentParser(
+        description="Compile Rule Tables.xlsx (tabs 0..6) into rules.json using country names."
+    )
+    ap.add_argument("--excel", required=True, help="Path to Rule Tables.xlsx")
+    ap.add_argument("--out", required=True, help="Path to write rules.json")
+    ap.add_argument("--fye", default="", help="Fiscal year-end (YYYY-MM-DD) for relative deadlines")
+    ap.add_argument("--debug", action="store_true", help="Verbose diagnostics")
+    args = ap.parse_args()
+
+    # Create and validate configuration
+    config = CompilerConfig(
+        excel_path=Path(args.excel),
+        output_path=Path(args.out),
+        fye=args.fye,
+        debug=args.debug
+    )
+    
+    try:
+        config.validate()
+    except FileNotFoundError as e:
+        print(f"❌ {e}")
+        sys.exit(1)
+
+    # Compile the rules
+    try:
+        data = compile_rules(config.excel_path, fye=config.fye, debug=config.debug)
+    except Exception as e:
+        print("❌ Compile failed:", e)
+        if config.debug:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+    # Validate output structure
+    if not isinstance(data, dict) or "countries" not in data:
+        print("❌ Unexpected output (no 'countries').")
+        sys.exit(1)
+
+    # Write output file
+    try:
+        config.output_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), 
+            encoding="utf-8"
+        )
+        print(f"✅ Wrote {config.output_path} ({len(data['countries'])} countries)")
+    except Exception as e:
+        print(f"❌ Failed to write output: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

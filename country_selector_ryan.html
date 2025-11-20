@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Country Selector (Ryan Format)</title>
+
+<!-- Link to user's Ryan_format.css (override fallback styles if present) -->
+<link rel="stylesheet" href="Ryan_format.css">
+
+<style>
+/* Fallback styles, will be overridden by Ryan_format.css if available */
+:root{
+  --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --accent:#c8921b;
+  --navy:#0d2a5c; --border:#e5e7eb; --radius:12px; --shadow:0 8px 30px rgba(2,8,23,.08);
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, Segoe UI, Roboto, Arial}
+.container{max-width:1100px; margin:0 auto; padding:24px}
+.header{background:var(--navy); color:#fff; padding:20px; border-radius:var(--radius); box-shadow:var(--shadow)}
+.header h1{margin:0 0 6px 0; font-size:22px}
+.header p{margin:0; opacity:.9}
+.panel{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-top:16px}
+.row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+label.btn{display:inline-flex; align-items:center; gap:8px; background:#0d2a5c; color:#fff; padding:10px 14px; border-radius:8px; cursor:pointer}
+input[type="file"]{display:none}
+.searchbar{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap}
+.searchbar input{flex:1; min-width:260px; padding:12px 14px; border:1px solid var(--border); border-radius:10px}
+.searchbar button{padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer}
+.searchbar button.primary{background:var(--accent); color:#000; border-color:transparent}
+.grid{display:grid; grid-template-columns:repeat(2, minmax(260px,1fr)); gap:12px; margin-top:16px}
+.item{background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px; display:flex; justify-content:space-between; align-items:center; cursor:pointer}
+.item:hover{background:#f9fafb}
+.badge{font-size:12px; background:#eef2f7; color:#0f172a; border-radius:999px; padding:3px 8px}
+.small{font-size:13px; color:var(--muted)}
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:#0d2a5c; color:#fff; padding:6px 10px; border-radius:999px}
+.chip button{background:transparent; color:#fff; border:none; cursor:pointer; font-weight:bold}
+.footer{margin-top:18px; font-size:12px; color:var(--muted)}
+.hidden{display:none}
+hr{border:none; border-top:1px solid var(--border); margin:14px 0}
+.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; background:#111827; color:#fff; padding:2px 6px; border-radius:6px; font-size:12px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Country Selector</h1>
+    <p>Load <b>country_codes.csv</b>. Type a country or ISO2 code; use <span class="kbd">↑/↓</span> then <span class="kbd">Enter</span> to select. Click items to toggle.</p>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label class="btn">
+        <input type="file" id="fileInput" accept=".csv,text/csv">
+        📥 Load country_codes.csv
+      </label>
+      <span id="fileHint" class="small">Expecting columns: <code>Country</code>, <code>ISO2</code></span>
+    </div>
+
+    <div class="searchbar">
+      <input id="search" type="text" placeholder="Search by Country or ISO2 (e.g., 'Germany' or 'DE')" disabled>
+      <button id="selectAll" type="button">Select All (filtered)</button>
+      <button id="clearSel" type="button">Clear selection</button>
+      <button id="copyNames" type="button">Copy country names</button>
+      <button id="copyISO" type="button">Copy ISO2 codes</button>
+      <button id="downloadCSV" class="primary" type="button">Download Dashboard_Input.csv</button>
+    </div>
+
+    <div id="chips" class="chips"></div>
+    <hr/>
+    <div id="grid" class="grid small"></div>
+    <div id="empty" class="small hidden">No matches. Try a different query.</div>
+
+    <div class="footer">Tip: Use arrow keys to move highlight. Press <span class="kbd">Enter</span> to add/remove.</div>
+  </div>
+</div>
+
+<script>
+let DATA = []; // {country, iso2}
+let filtered = [];
+let selected = new Map(); // iso2 -> {country, iso2}
+let activeIndex = 0;
+
+const fileInput = document.getElementById('fileInput');
+const search = document.getElementById('search');
+const grid = document.getElementById('grid');
+const chips = document.getElementById('chips');
+const empty = document.getElementById('empty');
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = reader.result;
+    DATA = parseCSV(text);
+    DATA = DATA
+      .filter(r => r.country && r.iso2)
+      .map(r => ({country: r.country.trim(), iso2: r.iso2.trim().toUpperCase()}));
+    DATA.sort((a,b)=>a.country.localeCompare(b.country));
+    search.disabled = false;
+    search.focus();
+    filtered = DATA.slice(0, 100);
+    renderList();
+  };
+  reader.readAsText(file);
+});
+
+function parseCSV(text){
+  // Simple CSV parser supporting commas inside quotes
+  const rows = [];
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if(lines.length === 0) return rows;
+  const header = splitCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+  const idxCountry = header.findIndex(h => h.includes('country'));
+  const idxISO = header.findIndex(h => h.includes('iso2') || h === 'iso');
+  for(let i=1;i<lines.length;i++){
+    const cols = splitCSVLine(lines[i]);
+    if(cols.length !== header.length) continue;
+    rows.push({
+      country: idxCountry>=0 ? cols[idxCountry] : '',
+      iso2: idxISO>=0 ? cols[idxISO] : ''
+    });
+  }
+  return rows;
+}
+
+function splitCSVLine(line){
+  const out = []; let cur = ''; let inq = false;
+  for(let i=0;i<line.length;i++){
+    const ch = line[i];
+    if(ch === '"'){
+      if(inq && line[i+1] === '"'){ cur += '"'; i++; }
+      else inq = !inq;
+    }else if(ch === ',' && !inq){
+      out.push(cur); cur = '';
+    }else{
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+search.addEventListener('input', () => {
+  const q = search.value.trim().toLowerCase();
+  if(!q){
+    filtered = DATA.slice(0, 200);
+  }else{
+    filtered = DATA.filter(r => 
+      r.country.toLowerCase().includes(q) ||
+      r.iso2.toLowerCase().startsWith(q)
+    ).slice(0, 400);
+  }
+  activeIndex = 0;
+  renderList();
+});
+
+search.addEventListener('keydown', (e) => {
+  if(!filtered.length) return;
+  if(e.key === 'ArrowDown'){ e.preventDefault(); activeIndex = Math.min(activeIndex+1, filtered.length-1); renderList(); }
+  else if(e.key === 'ArrowUp'){ e.preventDefault(); activeIndex = Math.max(activeIndex-1, 0); renderList(); }
+  else if(e.key === 'Enter'){ e.preventDefault(); toggle(filtered[activeIndex]); }
+});
+
+function toggle(item){
+  if(selected.has(item.iso2)){
+    selected.delete(item.iso2);
+  }else{
+    selected.set(item.iso2, item);
+  }
+  renderList();
+  renderChips();
+}
+
+function selectAllFiltered(){
+  for(const r of filtered){
+    selected.set(r.iso2, r);
+  }
+  renderList();
+  renderChips();
+}
+
+function renderList(){
+  grid.innerHTML = '';
+  empty.classList.toggle('hidden', filtered.length !== 0);
+  filtered.forEach((r, idx) => {
+    const div = document.createElement('div');
+    div.className = 'item';
+    if(idx === activeIndex) div.style.outline = '2px solid var(--accent)';
+    div.onclick = () => toggle(r);
+    const left = document.createElement('div');
+    left.innerHTML = `<b>${escapeHTML(r.country)}</b> <span class="small">(${r.iso2})</span>`;
+    const right = document.createElement('div');
+    const chosen = selected.has(r.iso2);
+    right.innerHTML = `<span class="badge">${chosen ? 'Selected' : 'Add'}</span>`;
+    div.append(left, right);
+    grid.appendChild(div);
+  });
+}
+
+function renderChips(){
+  chips.innerHTML = '';
+  for(const item of selected.values()){
+    const c = document.createElement('span');
+    c.className = 'chip';
+    c.innerHTML = `${escapeHTML(item.country)} (${item.iso2}) <button title="Remove" aria-label="Remove">×</button>`;
+    c.querySelector('button').onclick = () => { selected.delete(item.iso2); renderList(); renderChips(); };
+    chips.appendChild(c);
+  }
+}
+
+function escapeHTML(s){
+  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// Buttons
+document.getElementById('selectAll').onclick = selectAllFiltered;
+document.getElementById('clearSel').onclick = () => { selected.clear(); renderList(); renderChips(); };
+
+document.getElementById('copyNames').onclick = () => {
+  const names = [...selected.values()].map(x => x.country).join(', ');
+  navigator.clipboard.writeText(names || '').then(()=>alert('Copied country names to clipboard.'));
+};
+
+document.getElementById('copyISO').onclick = () => {
+  const iso = [...selected.keys()].join(', ');
+  navigator.clipboard.writeText(iso || '').then(()=>alert('Copied ISO2 codes to clipboard.'));
+};
+
+document.getElementById('downloadCSV').onclick = () => {
+  if(selected.size === 0){ alert('No countries selected.'); return; }
+  const rows = [['Country','Include']];
+  for(const v of selected.values()){
+    rows.push([v.country, 'Y']);
+  }
+  const csv = rows.map(r => r.map(x => /[",\n]/.test(x)?('"'+x.replace(/"/g,'""')+'"'):x).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Dashboard_Input.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+</script>
+</body>
+</html>

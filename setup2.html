@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TP Rules – Setup</title>
+<link rel="stylesheet" href="Ryan_format.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--w:1280px;--pad:18px}
+body{font:15px/1.5 system-ui,Segoe UI,Roboto,Arial;margin:0;color:#0f172a;background:#f7f7f8}
+.wrap{max-width:var(--w);margin:0 auto;padding:24px}
+h1{font-size:22px;margin:0 0 14px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}
+.btn{padding:9px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer}
+.btn.primary{background:#c8921b;border-color:#c8921b;color:#fff}
+.input{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;min-width:260px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+.card h3{margin:0 0 8px;font-size:16px}
+.country-list{display:flex;flex-wrap:wrap;gap:10px}
+.country{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #eef2f7;border-radius:999px;background:#fafbfc;cursor:pointer}
+.country:hover{background:#f1f5f9}
+.country.selected{background:#fef3c7;border-color:#fcd34d}
+.small{color:#64748b;font-size:12px}
+.footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+.kv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hidden{display:none}
+.small-btn{font-size:12px;padding:4px 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>TP Rules – Setup</h1>
+  <div class="controls">
+    <input id="search" class="input" placeholder="Filter by country name…" />
+    <button id="selectAll" class="btn">Select all (filtered)</button>
+    <button id="clearAll" class="btn">Clear all</button>
+    <button id="invertSel" class="btn">Invert (filtered)</button>
+    <span class="small" id="selCount">Selected: 0</span>
+    <button id="apply" class="btn primary" style="margin-left: auto;">Apply → Dashboard</button>
+  </div>
+
+  <div id="regionGrid" class="grid">
+    <!-- dynamic -->
+  </div>
+
+  <div class="footer">
+    <div class="small" id="meta"></div>
+  </div>
+</div>
+
+<script>
+let RULES = null;
+let ALL = [];          // all countries [{name, region}]
+let FILTER = "";       // search filter
+let PREV = new Set();  // previous selection from localStorage (now country names)
+
+const byId = (id) => document.getElementById(id);
+
+function escapeHtml(s) { 
+  return (s || '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); 
+}
+
+function loadRules() {
+  return fetch('rules.json?_=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      RULES = data;
+      ALL = (data.countries || []).map(c => ({
+        name: c.name, 
+        region: c.region || '(Unspecified Region)'
+      }));
+      
+      // Load previous selection
+      const saved = localStorage.getItem('tp_selection');
+      if (saved) {
+        try { 
+          JSON.parse(saved).forEach(x => PREV.add(x)); 
+        } catch(e) {}
+      }
+      
+      byId('meta').textContent = `Compiled: ${data.generated_at || ''} • Countries loaded: ${ALL.length}`;
+      render();
+    })
+    .catch(err => {
+      alert('Could not load rules.json. Open via http://localhost:PORT/ not file:// .');
+      console.error(err);
+    });
+}
+
+function groupByRegion(list) {
+  const m = {};
+  list.forEach(x => {
+    const r = x.region;
+    (m[r] = m[r] || []).push(x);
+  });
+  
+  // Sort regions and countries within each region
+  const sortedRegions = Object.keys(m).sort((a, b) => a.localeCompare(b));
+  sortedRegions.forEach(r => m[r].sort((a, b) => a.name.localeCompare(b.name)));
+  
+  return [sortedRegions, m];
+}
+
+function getFiltered() {
+  const q = FILTER.trim().toLowerCase();
+  if (!q) return ALL.slice();
+  return ALL.filter(x => x.name.toLowerCase().includes(q));
+}
+
+function render() {
+  const filtered = getFiltered();
+  const [regions, map] = groupByRegion(filtered);
+  const host = byId('regionGrid');
+  host.innerHTML = '';
+
+  regions.forEach(region => {
+    const list = map[region];
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    // Region header with select/deselect
+    const selectedInRegion = list.filter(x => PREV.has(x.name)).length;
+    const allInRegion = list.length;
+    
+    const header = document.createElement('div');
+    header.innerHTML = `
+      <h3>${escapeHtml(region)}</h3>
+      <div class="small">${selectedInRegion}/${allInRegion} selected</div>
+      <div class="kv" style="margin:6px 0 10px">
+        <label class="small">
+          <input type="checkbox" data-region="${escapeHtml(region)}" class="region-toggle" 
+                 ${selectedInRegion === allInRegion && allInRegion > 0 ? 'checked' : ''}> 
+          Select all in region
+        </label>
+        <button class="btn small-btn" data-region-clear="${escapeHtml(region)}">Clear region</button>
+      </div>
+    `;
+    card.appendChild(header);
+
+    // Country chips (clickable, no checkboxes)
+    const wrap = document.createElement('div');
+    wrap.className = 'country-list';
+    
+    list.forEach(c => {
+      const span = document.createElement('div');
+      span.className = 'country';
+      if (PREV.has(c.name)) {
+        span.classList.add('selected');
+      }
+      span.setAttribute('data-country', c.name);
+      span.innerHTML = `<strong>${escapeHtml(c.name)}</strong>`;
+      
+      // Click handler for country selection
+      span.addEventListener('click', () => {
+        if (PREV.has(c.name)) {
+          PREV.delete(c.name);
+          span.classList.remove('selected');
+        } else {
+          PREV.add(c.name);
+          span.classList.add('selected');
+        }
+        updateCounts(card);
+        saveTemp();
+        updateTotalCount();
+      });
+      
+      wrap.appendChild(span);
+    });
+    
+    card.appendChild(wrap);
+    host.appendChild(card);
+  });
+
+  // Wire region select-all
+  document.querySelectorAll('[data-region]').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const region = e.target.getAttribute('data-region');
+      const checked = e.target.checked;
+      
+      document.querySelectorAll('.card').forEach(card => {
+        const title = card.querySelector('h3')?.textContent || '';
+        if (title === region) {
+          card.querySelectorAll('[data-country]').forEach(countryEl => {
+            const countryName = countryEl.getAttribute('data-country');
+            if (checked) {
+              PREV.add(countryName);
+              countryEl.classList.add('selected');
+            } else {
+              PREV.delete(countryName);
+              countryEl.classList.remove('selected');
+            }
+          });
+          updateCounts(card);
+        }
+      });
+      
+      saveTemp();
+      updateTotalCount();
+    });
+  });
+
+  // Wire region clear buttons
+  document.querySelectorAll('[data-region-clear]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const region = e.target.getAttribute('data-region-clear');
+      
+      document.querySelectorAll('.card').forEach(card => {
+        const title = card.querySelector('h3')?.textContent || '';
+        if (title === region) {
+          card.querySelectorAll('[data-country]').forEach(countryEl => {
+            const countryName = countryEl.getAttribute('data-country');
+            PREV.delete(countryName);
+            countryEl.classList.remove('selected');
+          });
+          updateCounts(card);
+        }
+      });
+      
+      saveTemp();
+      updateTotalCount();
+    });
+  });
+
+  updateTotalCount();
+}
+
+function updateCounts(card) {
+  if (!card) return;
+  
+  const countries = card.querySelectorAll('[data-country]');
+  const selected = card.querySelectorAll('[data-country].selected');
+  const sel = selected.length;
+  const total = countries.length;
+  
+  const meter = card.querySelector('.small');
+  if (meter) {
+    meter.textContent = `${sel}/${total} selected`;
+  }
+  
+  const regionToggle = card.querySelector('.region-toggle');
+  if (regionToggle) {
+    regionToggle.checked = (sel === total && total > 0);
+  }
+}
+
+function updateTotalCount() {
+  byId('selCount').textContent = `Selected: ${PREV.size}`;
+}
+
+function saveTemp() {
+  localStorage.setItem('tp_selection', JSON.stringify([...PREV]));
+}
+
+// --- Top controls ---
+byId('search').addEventListener('input', (e) => { 
+  FILTER = e.target.value || ''; 
+  render(); 
+});
+
+byId('selectAll').addEventListener('click', () => {
+  document.querySelectorAll('[data-country]').forEach(countryEl => { 
+    const countryName = countryEl.getAttribute('data-country');
+    PREV.add(countryName);
+    countryEl.classList.add('selected');
+  });
+  document.querySelectorAll('.card').forEach(updateCounts);
+  saveTemp();
+  updateTotalCount();
+});
+
+byId('clearAll').addEventListener('click', () => {
+  document.querySelectorAll('[data-country]').forEach(countryEl => { 
+    const countryName = countryEl.getAttribute('data-country');
+    PREV.delete(countryName);
+    countryEl.classList.remove('selected');
+  });
+  document.querySelectorAll('.card').forEach(updateCounts);
+  saveTemp();
+  updateTotalCount();
+});
+
+byId('invertSel').addEventListener('click', () => {
+  document.querySelectorAll('[data-country]').forEach(countryEl => {
+    const countryName = countryEl.getAttribute('data-country');
+    if (PREV.has(countryName)) {
+      PREV.delete(countryName);
+      countryEl.classList.remove('selected');
+    } else {
+      PREV.add(countryName);
+      countryEl.classList.add('selected');
+    }
+  });
+  document.querySelectorAll('.card').forEach(updateCounts);
+  saveTemp();
+  updateTotalCount();
+});
+
+byId('apply').addEventListener('click', () => {
+  // Persist and go to dashboard
+  localStorage.setItem('tp_selection', JSON.stringify([...PREV]));
+  window.location.href = 'tp_rules_dashboard2.html';
+});
+
+// Boot
+loadRules();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "Country": "Country / Entity",
+  "Region": "Region",
+  "MF Requirements/Thresholds": "Master File (MF) Requirements & Thresholds",
+  "LF Requirements/Thresholds": "Local File (LF) Requirements & Thresholds",
+  "Forms/Disclosures": "Specific TP Forms / Disclosures (Mandatory Submission)",
+  "CBCR Notifications": "CbCR Notifications",
+  "Deadlines": "Deadlines (Filing or Automatic Submission)",
+  "Notes/Rule Notes": "Notes"
+}

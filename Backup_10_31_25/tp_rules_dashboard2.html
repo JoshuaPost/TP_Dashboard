@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TP Rules Dashboard</title>
+<link rel="stylesheet" href="Ryan_format.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root{ --canvas-w:1280px; --pad:18px; }
+body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; background:#f7f7f8; }
+.wrap{ max-width:var(--canvas-w); margin:0 auto; padding:16px var(--pad) 28px; }
+.topbar{ display:flex; gap:8px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.title{ font-weight:700; font-size:18px; }
+.meta{ color:#64748b; font-size:12px; }
+.nav{ display:flex; gap:6px; }
+.tab{ border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }
+.tab.active{ background:#c8921b; border-color:#c8921b; color:#fff; }
+
+.card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; }
+.card .section { 
+  border-top: 2px solid #bfdbfe; 
+  padding-top: 12px; 
+  margin-top: 16px; 
+}
+.card .section:first-child { 
+  border-top: none; 
+  padding-top: 0; 
+  margin-top: 0; 
+}
+.grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.grid-2 > div:first-child { 
+  padding-right: 14px; 
+  border-right: 2px solid #bfdbfe; 
+}
+.grid-2 > div:last-child { 
+  padding-left: 14px; 
+}
+.section{ margin-top:12px; }
+.section h3{ margin:6px 0 8px; font-size:16px; }
+.country-detail-name { font-size:16px; font-weight:700; }
+.section-header-primary { font-size:14px; font-weight:600; }
+.section-header-secondary { font-size:14px; font-weight:600; }
+.small{ color:#64748b; font-size:12px; }
+.kv{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.country-link {
+  cursor: pointer;
+  color: #0f172a;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.country-link:hover {
+  color: #c8921b;
+  text-decoration: underline;
+}
+.subsection-divider {
+  margin: 12px 0 8px 0;
+  padding-top: 12px;
+  border-top: 1px solid #e0e7ff;
+}
+
+.region{ font-weight:700; margin-bottom:8px; }
+.country-row{ display:flex; align-items:center; gap:8px; padding:8px; border:1px solid #eef2f7; border-radius:10px; background:#fff; cursor:pointer; }
+.country-row:hover{ background:#fafbff; }
+.country-name{ font-weight:600; }
+.country-abbr{ font-size:11px; color:#94a3b8; text-transform:uppercase; }
+
+.badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:2px 8px; border-radius:999px; font-weight:700;
+  font-size:11px; line-height:1; margin-right:8px; border:1px solid transparent;
+  min-width:fit-content; white-space:nowrap;
+}
+.badge-hard { background:#d92d20; color:#fff; border-color:#d92d20; }  /* red */
+.badge-soft { background:#e5e7eb; color:#374151; border-color:#d1d5db; } /* gray */
+
+.chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; margin-right:8px; border:1px solid #e5e7eb; }
+.chip-MF { background:#fde68a; border-color:#fcd34d; }  /* MF */
+.chip-LF { background:#bfdbfe; border-color:#93c5fd; }  /* LF */
+.chip-Fm { background:#c7f9cc; border-color:#86efac; }  /* Forms/Disclosures */
+.chip-Nt { background:#fbcfe8; border-color:#f9a8d4; }  /* CbCR Notification */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fafbfc;
+}
+
+.pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+/* Red = HARD deadline; Green = SOFT deadline */
+.pill-dot.hard {
+  background: #dc2626;  /* red */
+}
+
+.pill-dot.soft {
+  background: #10b981;  /* green */
+}
+
+
+.month-col { border:1px solid #eef2f7; border-radius:12px; padding:12px; background:#fff; }
+.month-title { font-weight:700; margin-bottom:10px; }
+.timeline-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; }
+.timeline-text { font-size:14px; color:#0f172a; }
+.timeline-sub { font-size:12px; color:#64748b; }
+.hr{ height:1px; background:#eef2f7; margin:10px 0; }
+
+.anchor{ scroll-margin-top:80px; } /* for in-page anchors */
+.header-row{ display:flex; justify-content:space-between; align-items:flex-end; gap:10px; }
+.hstack{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+.btn{ padding:8px 12px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; cursor:pointer; }
+.btn.primary{ background:#c8921b; border-color:#c8921b; color:#fff; }
+.input{ padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; min-width:220px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hstack">
+      <div class="title">TP Rules Dashboard</div>
+      <div class="small" id="meta"></div>
+    </div>
+    <div class="nav">
+      <button class="tab active" data-tab="summary">Summary</button>
+      <button class="tab" data-tab="details">Details</button>
+      <button class="tab" data-tab="timeline">Timeline</button>
+      <a class="tab" href="setup2.html" title="Change selection">Setup</a>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div id="panel-summary">
+    <div class="card">
+      <div class="header-row">
+        <div class="hstack">
+          <div class="small">Selection: <span id="selCount">0</span> countries</div>
+        </div>
+        <div class="hstack">
+          <button class="btn" id="clearSel">Clear selection</button>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="hstack small" id="summaryLegend" style="justify-content:flex-end; gap:14px;">
+        <span class="pill"><span class="pill-dot hard"></span> HARD deadline</span>
+        <span class="pill"><span class="pill-dot soft"></span> SOFT deadline</span>
+        <span class="pill"><strong>MF</strong>&nbsp;Master File</span>
+        <span class="pill"><strong>LF</strong>&nbsp;Local File / TPD</span>
+        <span class="pill"><strong>Fm</strong>&nbsp;TP Forms / Disclosures</span>
+        <span class="pill"><strong>Nt</strong>&nbsp;CbCR Notification</span>
+      </div>
+      <div id="summaryHost" class="grid-3"></div>
+    </div>
+  </div>
+
+  <!-- Details -->
+  <div id="panel-details" style="display:none">
+    <div class="card">
+      <div class="header-row">
+        <div class="hstack">
+          <div style="font-weight:700">Details by Country</div>
+          <div class="small">Click from Summary to jump here.</div>
+        </div>
+        <div class="hstack">
+          <input class="input" id="detailFilter" placeholder="Filter country name…" />
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div id="detailsHost" class="grid-2"></div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div id="panel-timeline" style="display:none">
+    <div class="card">
+      <div class="header-row">
+        <div id="timelineLegend" class="hstack"></div>
+        <label class="small">
+          <input type="checkbox" id="toggleSoft" checked> Show soft deadlines
+        </label>
+      </div>
+      <div class="hr"></div>
+      <div id="timelineHost"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let RULES = null;
+let SELECTED = new Set(); // Country names from localStorage
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function escapeHtml(s){ 
+  return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); 
+}
+
+function getCountryId(country) {
+  // Create a safe ID from country name for DOM elements
+  return 'country_' + (country.name || '').replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function getCountryAbbr(name) {
+  // Generate 2-3 letter abbreviation from country name for badges
+  if (!name) return '??';
+  
+  // Special cases for common countries
+  const specialCases = {
+    'United States': 'USA',
+    'United Kingdom': 'UK',
+    'United Arab Emirates': 'UAE',
+    'South Africa': 'ZA',
+    'New Zealand': 'NZ',
+    'Hong Kong': 'HK',
+    'South Korea': 'KR',
+    'North Korea': 'KP',
+    'Czech Republic': 'CZ',
+    'Saudi Arabia': 'SA',
+    'Costa Rica': 'CR',
+    'El Salvador': 'SV',
+    'Dominican Republic': 'DO',
+    'Puerto Rico': 'PR'
+  };
+  
+  if (specialCases[name]) return specialCases[name];
+  
+  // If it's already a 2-3 letter code, return it
+  if (name.length <= 3 && name === name.toUpperCase()) {
+    return name;
+  }
+  
+  const words = (name || '').split(/\s+/);
+  if (words.length === 1) {
+    // Single word - take first 3 letters
+    return words[0].substring(0, 3).toUpperCase();
+  } else if (words.length === 2) {
+    // Two words - take first letter of each
+    return (words[0][0] + words[1][0]).toUpperCase();
+  } else {
+    // Multiple words - take first letter of first 3 words
+    return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
+  }
+}
+
+function badgeClassFor(reqType){ 
+  return (reqType && reqType.toUpperCase() === 'HARD') ? 'badge badge-hard' : 'badge badge-soft'; 
+}
+
+function chipFor(type){ 
+  return `<span class="chip chip-${type}">${type}</span>`; 
+}
+
+function loadSelection(){
+  const saved = localStorage.getItem('tp_selection');
+  if (saved) { 
+    try { 
+      JSON.parse(saved).forEach(x => SELECTED.add(x)); 
+    } catch(e) {} 
+  }
+  document.getElementById('selCount').textContent = SELECTED.size;
+}
+
+function loadRules(){
+  return fetch('rules.json?_=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      RULES = data;
+      document.getElementById('meta').textContent = `Compiled: ${data.generated_at||''} • FYE: ${data.fye||''} • Countries: ${(data.countries||[]).length}`;
+      renderAll();
+    })
+    .catch(err => {
+      alert('Could not load rules.json. Make sure you are serving via http://localhost:PORT/');
+      console.error(err);
+    });
+}
+
+function applicableThresholds(items){
+  // Filter out N/A or not applicable thresholds
+  if (!items || !items.length) return null;
+  
+  const applicable = items.filter(t => {
+    const applies = (t.requirement_applies || '').toLowerCase();
+    const note = (t.note || '').toLowerCase();
+    
+    // Include only if explicitly applies
+    if (applies === 'no' || applies === 'n' || applies === 'n/a') return false;
+    if (note.includes('not applicable') || note.includes('n/a')) return false;
+    
+    return true;
+  });
+  
+  return applicable.length > 0 ? applicable : null;
+}
+
+// ---------- SUMMARY ----------
+function dotClass(items){
+  if (!items || !items.length) return null;
+  
+  // Filter out N/A or not applicable items
+  const applicable = items.filter(d => {
+    const reqType = (d.requirement_type || d.class || '').toUpperCase();
+    const text = (d.text || d.DisplayText || '').toLowerCase();
+    const deadlineKind = (d.deadline_kind || '').toUpperCase();
+    
+    // Skip if explicitly N/A or not applicable
+    if (reqType === 'N/A' || reqType === 'NA') return false;
+    if (deadlineKind === 'N/A' || deadlineKind === 'NA' || deadlineKind === 'NONE') return false;
+    if (text.includes('not applicable') || text.includes('n/a')) return false;
+    
+    return true;
+  });
+  
+  if (!applicable.length) return null;
+  
+  // Check if any applicable items are HARD
+  const hasHard = applicable.some(d => {
+    const reqType = d.requirement_type || d.class || '';
+    return reqType.toUpperCase() === 'HARD';
+  });
+  
+  return hasHard ? 'hard' : 'soft';
+}
+
+function renderSummary(){
+  const host = document.getElementById('summaryHost');
+  host.innerHTML = '';
+
+  const map = {};
+  (RULES.countries || []).forEach(c => {
+    if (!SELECTED.size || SELECTED.has(c.name)) {
+      const r = c.region || '(Unspecified)';
+      (map[r] = map[r] || []).push(c);
+    }
+  });
+  
+  const regions = Object.keys(map).sort((a, b) => a.localeCompare(b));
+  
+  regions.forEach(r => {
+    const col = document.createElement('div'); 
+    col.className = 'section';
+    
+    const title = document.createElement('div'); 
+    title.className = 'region'; 
+    title.textContent = r;
+    col.appendChild(title);
+
+    map[r].sort((a, b) => a.name.localeCompare(b.name));
+    
+    map[r].forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'country-row';
+      row.setAttribute('data-country', c.name);
+
+      let pills = '';
+
+      // Check MF - both thresholds and deadlines must be considered
+      const mfThresholdsApplicable = (c.mf_thresholds || []).some(t => {
+        const applies = (t.requirement_applies || '').toLowerCase();
+        return applies !== 'no' && applies !== 'n' && applies !== 'n/a';
+      });
+      
+      const mfDeadlinesApplicable = dotClass(c.mf_deadlines);
+      
+      // Only show MF if either thresholds apply OR deadlines exist and are applicable
+      if (mfThresholdsApplicable || mfDeadlinesApplicable) {
+        const mfDot = mfDeadlinesApplicable || 'soft';  // Use deadline type if exists, else soft
+        pills += `<span class="pill"><span class="pill-dot ${mfDot}"></span> MF</span>`;
+      }
+
+      // Check LF - both thresholds and deadlines
+      const lfThresholdsApplicable = (c.lf_tpd_thresholds || []).some(t => {
+        const applies = (t.requirement_applies || '').toLowerCase();
+        return applies !== 'no' && applies !== 'n' && applies !== 'n/a';
+      });
+      
+      const lfDeadlinesApplicable = dotClass(c.lf_tpd_deadlines);
+      
+      if (lfThresholdsApplicable || lfDeadlinesApplicable) {
+        const lfDot = lfDeadlinesApplicable || 'soft';
+        pills += `<span class="pill"><span class="pill-dot ${lfDot}"></span> LF</span>`;
+      }
+
+      const fmDot = dotClass(c.tp_forms);
+      if (fmDot) pills += `<span class="pill"><span class="pill-dot ${fmDot}"></span> Fm</span>`;
+
+      const ntDot = c.cbcr && c.cbcr.requirement_type ? 
+        (c.cbcr.requirement_type.toUpperCase() === 'HARD' ? 'hard' : 'soft') : null;
+      if (ntDot) pills += `<span class="pill"><span class="pill-dot ${ntDot}"></span> Nt</span>`;
+
+      row.innerHTML = `
+        <div style="min-width:120px">
+          <span class="country-name">${escapeHtml(c.name)}</span>
+        </div>
+        <div class="kv" style="margin-left:auto">
+          ${pills || '<span class="small">No TP requirements</span>'}
+        </div>
+      `;
+
+      row.addEventListener('click', () => {
+        switchTab('details');
+        const el = document.getElementById(getCountryId(c));
+        if (el) { 
+          el.scrollIntoView({behavior:'smooth', block:'start'}); 
+        }
+      });
+      
+      col.appendChild(row);
+    });
+
+    host.appendChild(col);
+  });
+}
+
+// ---------- DETAILS ----------
+function formatThreshold(t) {
+  if (!t) return '';
+  let parts = [];
+  
+  if (t.op && t.amount !== null && t.amount !== undefined) {
+    parts.push(`${t.op} ${t.currency || ''}${t.amount.toLocaleString()}`);
+  }
+  if (t.metric) {
+    parts.push(t.metric);
+  }
+  if (t.metric_basis) {
+    parts.push(t.metric_basis);
+  }
+  if (t.note) {
+    parts.push(t.note);
+  }
+  
+  return parts.join(' • ');
+}
+
+function formatDeadline(d) {
+  if (!d) return '';
+  return d.text || d.deadline || `${d.month_name || ''} ${d.day || ''}`.trim() || '';
+}
+
+function formatCitDeadlines(deadlines) {
+  if (!deadlines || !deadlines.length) return '<div class="small">—</div>';
+  
+  let html = '';
+  deadlines.forEach(d => {
+    const taxpayerType = d.taxpayer_type || 'Standard';
+    const text = d.text || formatDeadline(d) || '';
+    if (text) {
+      html += `<div class="kv">
+        <span class="small">${escapeHtml(taxpayerType)}:</span>
+        <span>${escapeHtml(text)}</span>
+      </div>`;
+    }
+  });
+  
+  return html || '<div class="small">—</div>';
+}
+
+function sectionList(items, formatter){
+  if (!items || !items.length) return '<div class="small">—</div>';
+  
+  // Group items by group_id
+  const groups = {};
+  items.forEach(item => {
+    const groupId = item.group_id || 'default';
+    if (!groups[groupId]) groups[groupId] = [];
+    groups[groupId].push(item);
+  });
+  
+  let html = '';
+  Object.keys(groups).sort().forEach(groupId => {
+    const groupItems = groups[groupId];
+    groupItems.forEach(item => {
+      const text = formatter ? formatter(item) : item.text || '';
+      if (text) {
+        html += `<div class="kv"><span>${escapeHtml(text)}</span></div>`;
+      }
+    });
+  });
+  
+  return html || '<div class="small">—</div>';
+}
+
+function detailsCard(c){
+  return `
+    <div class="card anchor" id="${getCountryId(c)}">
+      <div class="header-row">
+        <div class="hstack">
+          <div class="country-detail-name">
+            <span class="country-link" 
+                  onclick="switchToSummaryAndHighlight('${escapeHtml(c.name)}')"
+                  title="Click to return to Summary">
+              ${escapeHtml(c.name)}
+            </span>
+          </div>
+        </div>
+        <div class="small">${escapeHtml(c.region || '')}</div>
+      </div>
+      <div class="hr"></div>
+
+      <div class="grid-2">
+        <div>
+          <h3 class="section-header-primary">Master File</h3>
+          <div class="small">Thresholds</div>
+          ${sectionList(c.mf_thresholds || [], formatThreshold)}
+          <div class="subsection-divider"></div>
+          <div class="small">Deadlines</div>
+          ${sectionList(c.mf_deadlines || [], formatDeadline)}
+        </div>
+        <div>
+          <h3 class="section-header-primary">Local File / TPD</h3>
+          <div class="small">Thresholds</div>
+          ${sectionList(c.lf_tpd_thresholds || [], formatThreshold)}
+          <div class="subsection-divider"></div>
+          <div class="small">Deadlines</div>
+          ${sectionList(c.lf_tpd_deadlines || [], formatDeadline)}
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 class="section-header-secondary">TP Forms / Disclosures</h3>
+        ${sectionList(c.tp_forms || [], (f) => {
+          let text = f.name || '';
+          if (f.text || f.deadline) {
+            text += text ? ' — ' : '';
+            text += formatDeadline(f);
+          }
+          return text;
+        })}
+      </div>
+
+      <div class="section">
+        <h3 class="section-header-secondary">CbCR Notification</h3>
+        ${c.cbcr ? `<div class="kv"><span>${escapeHtml(formatDeadline(c.cbcr))}</span></div>` : '<div class="small">—</div>'}
+      </div>
+
+      <div class="section">
+        <h3 class="section-header-secondary">CIT Filing Deadlines</h3>
+        ${formatCitDeadlines(c.cit_deadlines || [])}
+      </div>
+    </div>
+  `;
+}
+
+function renderDetails(){
+  const host = document.getElementById('detailsHost');
+  const q = (document.getElementById('detailFilter').value || '').toLowerCase();
+  host.innerHTML = '';
+
+  let list = (RULES.countries || []).filter(c => !SELECTED.size || SELECTED.has(c.name));
+  
+  if (q) {
+    list = list.filter(c => c.name.toLowerCase().includes(q));
+  }
+  
+  list.sort((a, b) => a.name.localeCompare(b.name));
+
+  const frag = document.createDocumentFragment();
+  list.forEach(c => { 
+    const div = document.createElement('div'); 
+    div.innerHTML = detailsCard(c); 
+    frag.appendChild(div.firstElementChild); 
+  });
+  host.appendChild(frag);
+}
+
+// ---------- TIMELINE ----------
+function collectTimelineItems(country, showSoft){
+  const items = [];
+  const countryName = country.name;
+  const abbr = getCountryAbbr(country.name);
+
+  (country.mf_deadlines || []).forEach(d => {
+    if (!d.month) return;
+    const reqType = (d.requirement_type || '').toUpperCase();
+    if (!showSoft && reqType === 'SOFT') return;
+    items.push({
+      month: d.month, 
+      reqType: reqType, 
+      countryName: countryName,
+      abbr: abbr, 
+      type: 'MF', 
+      text: formatDeadline(d)
+    });
+  });
+  
+  (country.lf_tpd_deadlines || []).forEach(d => {
+    if (!d.month) return;
+    const reqType = (d.requirement_type || '').toUpperCase();
+    if (!showSoft && reqType === 'SOFT') return;
+    items.push({
+      month: d.month, 
+      reqType: reqType, 
+      countryName: countryName,
+      abbr: abbr, 
+      type: 'LF', 
+      text: formatDeadline(d)
+    });
+  });
+  
+  (country.tp_forms || []).forEach(d => {
+    if (!d.month) return;
+    const reqType = (d.requirement_type || '').toUpperCase();
+    if (!showSoft && reqType === 'SOFT') return;
+    const label = d.name ? `${d.name} — ${formatDeadline(d)}` : formatDeadline(d);
+    items.push({
+      month: d.month, 
+      reqType: reqType, 
+      countryName: countryName,
+      abbr: abbr, 
+      type: 'Fm', 
+      text: label
+    });
+  });
+  
+  if (country.cbcr && country.cbcr.month) {
+    const reqType = (country.cbcr.requirement_type || '').toUpperCase();
+    if (showSoft || reqType === 'HARD') {
+      items.push({
+        month: country.cbcr.month, 
+        reqType: reqType, 
+        countryName: countryName,
+        abbr: abbr, 
+        type: 'Nt', 
+        text: formatDeadline(country.cbcr)
+      });
+    }
+  }
+  
+  return items;
+}
+
+function renderTimeline(){
+  const showSoft = document.getElementById('toggleSoft') ? document.getElementById('toggleSoft').checked : true;
+
+  const itemsByMonth = Array.from({length: 12}, () => []);
+  
+  (RULES.countries || []).forEach(c => {
+    if (!SELECTED.size || SELECTED.has(c.name)) {
+      collectTimelineItems(c, showSoft).forEach(it => {
+        if (it.month >= 1 && it.month <= 12) {
+          itemsByMonth[it.month - 1].push(it);
+        }
+      });
+    }
+  });
+  
+  // Sort items within each month
+  for (let i = 0; i < 12; i++) {
+    itemsByMonth[i].sort((a, b) => {
+      if (a.countryName !== b.countryName) return a.countryName.localeCompare(b.countryName);
+      if (a.type !== b.type) return a.type.localeCompare(b.type);
+      return (a.text || '').localeCompare(b.text || '');
+    });
+  }
+
+  const host = document.getElementById('timelineHost');
+  host.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'grid-3';
+
+  for (let m = 0; m < 12; m++) {
+    const col = document.createElement('div'); 
+    col.className = 'month-col';
+    
+    const title = document.createElement('div'); 
+    title.className = 'month-title'; 
+    title.textContent = MONTHS[m];
+    col.appendChild(title);
+
+    const list = itemsByMonth[m];
+    if (!list.length) {
+      const empty = document.createElement('div'); 
+      empty.className = 'timeline-sub'; 
+      empty.textContent = '—';
+      col.appendChild(empty);
+    } else {
+      list.forEach(it => {
+        const row = document.createElement('div'); 
+        row.className = 'timeline-item';
+        row.innerHTML = `
+          <span class="${badgeClassFor(it.reqType)}" title="${escapeHtml(it.countryName)}" style="min-width: 80px; padding: 2px 8px;">
+            ${escapeHtml(it.countryName)}
+          </span>
+          ${chipFor(it.type)}
+          <span class="timeline-text">${escapeHtml(it.text)}</span>
+        `;
+        col.appendChild(row);
+      });
+    }
+    grid.appendChild(col);
+  }
+  host.appendChild(grid);
+
+  const legend = document.getElementById('timelineLegend');
+  if (legend) {
+    legend.innerHTML = `
+      <span class="badge badge-hard" style="min-width: 80px; padding: 2px 8px;">Angola</span> HARD &nbsp;
+      <span class="badge badge-soft" style="min-width: 80px; padding: 2px 8px;">Canada</span> SOFT &nbsp;
+      <span class="chip chip-MF">MF</span> Master File &nbsp;
+      <span class="chip chip-LF">LF</span> Local File/TPD &nbsp;
+      <span class="chip chip-Fm">Fm</span> TP Forms/Disclosures &nbsp;
+      <span class="chip chip-Nt">Nt</span> CbCR Notification
+    `;
+  }
+}
+
+// ---------- Tabs & wiring ----------
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('[id^="panel-"]').forEach(p => p.style.display = 'none');
+  document.querySelector(`.tab[data-tab="${name}"]`)?.classList.add('active');
+  document.getElementById(`panel-${name}`).style.display = 'block';
+  
+  if (name === 'summary') renderSummary();
+  if (name === 'details') renderDetails();
+  if (name === 'timeline') renderTimeline();
+}
+
+function switchToSummaryAndHighlight(countryName) {
+  // Switch to Summary tab
+  switchTab('summary');
+  
+  // Find and highlight the country after a brief delay for rendering
+  setTimeout(() => {
+    // Find the country row
+    const countryRows = document.querySelectorAll('.country-row');
+    countryRows.forEach(row => {
+      const nameEl = row.querySelector('.country-name');
+      if (nameEl && nameEl.textContent === countryName) {
+        // Scroll to the country
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Add temporary highlight
+        row.style.backgroundColor = '#fef3c7';
+        row.style.transition = 'background-color 0.3s';
+        
+        // Remove highlight after 2 seconds
+        setTimeout(() => {
+          row.style.backgroundColor = '';
+        }, 2000);
+      }
+    });
+  }, 100);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Alt+S = Summary, Alt+D = Details, Alt+T = Timeline, Alt+U = Setup
+  if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+    switch(e.key.toLowerCase()) {
+      case 's':
+        e.preventDefault();
+        switchTab('summary');
+        break;
+      case 'd':
+        e.preventDefault();
+        switchTab('details');
+        break;
+      case 't':
+        e.preventDefault();
+        switchTab('timeline');
+        break;
+      case 'u':
+        e.preventDefault();
+        window.location.href = 'setup2.html';
+        break;
+    }
+  }
+  
+  // Escape key to clear filter in Details view
+  if (e.key === 'Escape') {
+    const detailFilter = document.getElementById('detailFilter');
+    if (detailFilter && document.getElementById('panel-details').style.display !== 'none') {
+      detailFilter.value = '';
+      renderDetails();
+    }
+  }
+});
+
+document.querySelectorAll('.tab[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+});
+
+document.getElementById('toggleSoft').addEventListener('change', renderTimeline);
+document.getElementById('detailFilter').addEventListener('input', renderDetails);
+
+document.getElementById('clearSel').addEventListener('click', () => {
+  SELECTED.clear(); 
+  localStorage.setItem('tp_selection', JSON.stringify([]));
+  document.getElementById('selCount').textContent = '0';
+  renderAll();
+});
+
+function renderAll(){
+  renderSummary();
+  renderDetails();
+  renderTimeline();
+}
+
+loadSelection();
+loadRules();
+</script>
+</body>
+</html>

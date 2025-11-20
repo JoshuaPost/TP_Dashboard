@@ -42,6 +42,27 @@ body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; ba
 .country-detail-name { font-size:16px; font-weight:700; }
 .section-header-primary { font-size:14px; font-weight:600; }
 .section-header-secondary { font-size:14px; font-weight:600; }
+.paired-sections{ position:relative; }
+.paired-content{ transition:max-height 0.25s ease; }
+.paired-content.collapsed{ overflow:hidden; }
+.paired-content.collapsed::after{
+  content:'';
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:42px;
+  background:linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 80%);
+}
+.more-btn{
+  margin-top:8px;
+  border:1px solid #e5e7eb;
+  background:#f8fafc;
+  border-radius:8px;
+  padding:6px 10px;
+  cursor:pointer;
+  font-weight:600;
+  display:none;
+}
+.more-btn:hover{ background:#e2e8f0; }
 .small{ color:#64748b; font-size:12px; }
 .kv{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .country-link {
@@ -677,6 +698,83 @@ function sectionList(items, formatter){
   return html || '<div class="small">—</div>';
 }
 
+const DETAILS_COLLAPSE_THRESHOLD = 380;
+
+function applyCollapser(card){
+  const content = card.querySelector('.paired-content');
+  const btn = card.querySelector('.more-btn');
+  if (!content || !btn) return;
+
+  const wasExpanded = content.classList.contains('expanded');
+  content.classList.remove('collapsed');
+  if (!wasExpanded) {
+    content.classList.remove('expanded');
+  }
+  content.style.maxHeight = '';
+  btn.style.display = 'none';
+
+  if (content.scrollHeight > DETAILS_COLLAPSE_THRESHOLD) {
+    btn.style.display = 'inline-flex';
+    if (!wasExpanded) {
+      content.classList.add('collapsed');
+      content.style.maxHeight = DETAILS_COLLAPSE_THRESHOLD + 'px';
+      btn.textContent = '+ Show more';
+    } else {
+      btn.textContent = '– Show less';
+    }
+
+    btn.onclick = () => {
+      const isCollapsed = content.classList.contains('collapsed');
+      if (isCollapsed) {
+        content.classList.remove('collapsed');
+        content.classList.add('expanded');
+        content.style.maxHeight = '';
+        btn.textContent = '– Show less';
+      } else {
+        content.classList.remove('expanded');
+        content.classList.add('collapsed');
+        content.style.maxHeight = DETAILS_COLLAPSE_THRESHOLD + 'px';
+        btn.textContent = '+ Show more';
+      }
+      requestAnimationFrame(alignDetailStacks);
+    };
+  }
+}
+
+function alignDetailStacks(){
+  const host = document.getElementById('detailsHost');
+  if (!host) return;
+
+  const cards = Array.from(host.querySelectorAll('.card'));
+
+  // Reset heights and apply collapsers
+  cards.forEach(card => {
+    const content = card.querySelector('.paired-content');
+    if (content) {
+      content.style.minHeight = '';
+    }
+    applyCollapser(card);
+  });
+
+  // Equalize height of paired sections for each row of two cards
+  for (let i = 0; i < cards.length; i += 2) {
+    const rowCards = cards.slice(i, i + 2);
+    let max = 0;
+    rowCards.forEach(card => {
+      const content = card.querySelector('.paired-content');
+      if (content) {
+        max = Math.max(max, content.offsetHeight);
+      }
+    });
+    rowCards.forEach(card => {
+      const content = card.querySelector('.paired-content');
+      if (content && max) {
+        content.style.minHeight = `${max}px`;
+      }
+    });
+  }
+}
+
 function detailsCard(c){
   return `
     <div class="card anchor" id="${getCountryId(c)}">
@@ -694,23 +792,28 @@ function detailsCard(c){
       </div>
       <div class="hr"></div>
 
-      <div class="grid-2">
-        <div>
-          <h3 class="section-header-primary">Master File</h3>
-          <div class="small">Thresholds</div>
-          ${sectionList(c.mf_thresholds || [], formatThreshold)}
-          <div class="subsection-divider"></div>
-          <div class="small">Deadlines</div>
-          ${sectionList(c.mf_deadlines || [], formatDeadline)}
+      <div class="paired-sections">
+        <div class="paired-content">
+          <div class="grid-2">
+            <div>
+              <h3 class="section-header-primary">Master File</h3>
+              <div class="small">Thresholds</div>
+              ${sectionList(c.mf_thresholds || [], formatThreshold)}
+              <div class="subsection-divider"></div>
+              <div class="small">Deadlines</div>
+              ${sectionList(c.mf_deadlines || [], formatDeadline)}
+            </div>
+            <div>
+              <h3 class="section-header-primary">Local File / TPD</h3>
+              <div class="small">Thresholds</div>
+              ${sectionList(c.lf_tpd_thresholds || [], formatThreshold)}
+              <div class="subsection-divider"></div>
+              <div class="small">Deadlines</div>
+              ${sectionList(c.lf_tpd_deadlines || [], formatDeadline)}
+            </div>
+          </div>
         </div>
-        <div>
-          <h3 class="section-header-primary">Local File / TPD</h3>
-          <div class="small">Thresholds</div>
-          ${sectionList(c.lf_tpd_thresholds || [], formatThreshold)}
-          <div class="subsection-divider"></div>
-          <div class="small">Deadlines</div>
-          ${sectionList(c.lf_tpd_deadlines || [], formatDeadline)}
-        </div>
+        <button class="more-btn" type="button">+ Show more</button>
       </div>
 
       <div class="section">
@@ -758,6 +861,7 @@ function renderDetails(){
     frag.appendChild(div.firstElementChild); 
   });
   host.appendChild(frag);
+  alignDetailStacks();
 }
 
 // ---------- TIMELINE ----------
@@ -1389,6 +1493,9 @@ function removePresentationElements() {
   totalPages = 1;
   pagesContent = [];
 }
+
+// Re-align detail cards on resize to keep TP Forms / Disclosures in line
+window.addEventListener('resize', alignDetailStacks);
 
 // Add presentation mode button on page load
 document.addEventListener('DOMContentLoaded', function() {

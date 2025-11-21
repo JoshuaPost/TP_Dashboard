@@ -488,25 +488,14 @@ function loadSelection(){
 }
 
 function loadRules(){
-  // Prefer embedded rules (for file:// usage); fall back to fetch if not present
-  if (window.INLINE_RULES) {
-    RULES = window.INLINE_RULES;
-    document.getElementById('meta').textContent = `Compiled: ${RULES.generated_at||''} â€¢ FYE: ${RULES.fye||''} â€¢ Countries: ${(RULES.countries||[]).length}`;
-    renderAll();
-    return Promise.resolve();
+  // Offline: rely only on embedded rules
+  if (!window.INLINE_RULES) {
+    alert('Inline rules data missing. Please use the packaged dist/index.html with embedded data.');
+    return;
   }
-
-  return fetch('rules.json?_=' + Date.now())
-    .then(r => r.json())
-    .then(data => {
-      RULES = data;
-      document.getElementById('meta').textContent = `Compiled: ${data.generated_at||''} â€¢ FYE: ${data.fye||''} â€¢ Countries: ${(data.countries||[]).length}`;
-      renderAll();
-    })
-    .catch(err => {
-      alert('Could not load rules.json. Make sure you are serving via http://localhost:PORT/ or embed INLINE_RULES.');
-      console.error(err);
-    });
+  RULES = window.INLINE_RULES;
+  document.getElementById('meta').textContent = `Compiled: ${RULES.generated_at||''} ? FYE: ${RULES.fye||''} ? Countries: ${(RULES.countries||[]).length}`;
+  renderAll();
 }
 
 function applicableThresholds(items){

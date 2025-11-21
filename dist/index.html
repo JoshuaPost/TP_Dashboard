@@ -1300,9 +1300,6 @@ function renderAll(){
   renderTimeline();
 }
 
-loadSelection();
-loadRules();
-
 // ============ PRESENTATION MODE FUNCTIONALITY ============
 let presentationMode = false;
 let currentPage = 1;
@@ -31132,6 +31129,10 @@ window.INLINE_RULES = {
     }
   ]
 };
+
+// Boot after inline rules are available
+loadSelection();
+loadRules();
 </script>
 </body>
 </html>

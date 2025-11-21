@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TP Rules – Setup</title>
+<link rel="stylesheet" href="Ryan_format.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--w:1280px;--pad:18px}
+body{font:15px/1.5 system-ui,Segoe UI,Roboto,Arial;margin:0;color:#0f172a;background:#f7f7f8}
+.wrap{max-width:var(--w);margin:0 auto;padding:24px}
+h1{font-size:22px;margin:0 0 14px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}
+.btn{padding:9px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer}
+.btn.primary{background:#c8921b;border-color:#c8921b;color:#fff}
+.input{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;min-width:260px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+.card h3{margin:0 0 8px;font-size:16px}
+.country-list{display:flex;flex-wrap:wrap;gap:10px}
+.country{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid #eef2f7;border-radius:999px;background:#fafbfc}
+.small{color:#64748b;font-size:12px}
+.footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+.kv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>TP Rules – Setup</h1>
+  <div class="controls">
+    <input id="search" class="input" placeholder="Filter by Country or ISO2…" />
+    <button id="selectAll" class="btn">Select all (filtered)</button>
+    <button id="clearAll" class="btn">Clear all</button>
+    <button id="invertSel" class="btn">Invert (filtered)</button>
+    <span class="small" id="selCount">Selected: 0</span>
+  </div>
+
+  <div id="regionGrid" class="grid">
+    <!-- dynamic -->
+  </div>
+
+  <div class="footer">
+    <div class="small" id="meta"></div>
+    <div class="kv">
+      <button id="apply" class="btn primary">Apply → Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let RULES=null;
+let ALL=[];          // all countries [{name,iso2,region}]
+let FILTER="";       // search filter
+let PREV=new Set();  // previous selection from localStorage
+
+const byId=(id)=>document.getElementById(id);
+
+function loadRules(){
+  return fetch('rules.json?_='+Date.now())
+    .then(r=>r.json())
+    .then(data=>{
+      RULES=data;
+      ALL = (data.countries||[]).map(c=>({name:c.name, iso2:c.iso2, region:c.region}));
+      const saved = localStorage.getItem('tp_selection');
+      if (saved) {
+        try { JSON.parse(saved).forEach(x=>PREV.add(x)); } catch(e){}
+      }
+      byId('meta').textContent = `Compiled: ${data.generated_at||''} • Countries loaded: ${ALL.length}`;
+      render();
+    })
+    .catch(err=>{
+      alert('Could not load rules.json. Open via http://localhost:PORT/ not file:// .');
+      console.error(err);
+    });
+}
+
+function groupByRegion(list){
+  const m={};
+  list.forEach(x=>{
+    const r=x.region||'(Unspecified Region)';
+    (m[r]=m[r]||[]).push(x);
+  });
+  // sort regions and countries
+  const sortedRegions = Object.keys(m).sort((a,b)=>a.localeCompare(b));
+  sortedRegions.forEach(r=>m[r].sort((a,b)=>a.iso2.localeCompare(b.iso2)));
+  return [sortedRegions,m];
+}
+
+function getFiltered(){
+  const q=FILTER.trim().toLowerCase();
+  if(!q) return ALL.slice();
+  return ALL.filter(x=>x.name.toLowerCase().includes(q) || x.iso2.toLowerCase().includes(q));
+}
+
+function render(){
+  const filtered = getFiltered();
+  const [regions, map] = groupByRegion(filtered);
+  const host = byId('regionGrid');
+  host.innerHTML='';
+
+  regions.forEach(region=>{
+    const list = map[region];
+    const card = document.createElement('div');
+    card.className='card';
+
+    // region header with select/deselect
+    const selectedInRegion = list.filter(x=>PREV.has(x.iso2)).length;
+    const allInRegion = list.length;
+    const header = document.createElement('div');
+    header.innerHTML = `
+      <h3>${region}</h3>
+      <div class="small">${selectedInRegion}/${allInRegion} selected</div>
+      <div class="kv" style="margin:6px 0 10px">
+        <label class="small"><input type="checkbox" data-region="${region}" class="region-toggle"> Select all in region</label>
+        <button class="btn small-btn" data-region-clear="${region}">Clear region</button>
+      </div>
+    `;
+    card.appendChild(header);
+
+    // country chips with checkboxes
+    const wrap = document.createElement('div');
+    wrap.className='country-list';
+    list.forEach(c=>{
+      const span = document.createElement('label');
+      span.className='country';
+      span.innerHTML = `
+        <input type="checkbox" value="${c.iso2}" ${PREV.has(c.iso2)?'checked':''}>
+        <strong>${c.iso2}</strong> <span class="small">${c.name.replace(/&/g,'&amp;')}</span>
+      `;
+      wrap.appendChild(span);
+    });
+    card.appendChild(wrap);
+    host.appendChild(card);
+  });
+
+  // wire region select-all
+  document.querySelectorAll('[data-region]').forEach(cb=>{
+    cb.addEventListener('change', (e)=>{
+      const region = e.target.getAttribute('data-region');
+      document.querySelectorAll('.card').forEach(card=>{
+        const title = card.querySelector('h3')?.textContent || '';
+        if (title===region){
+          card.querySelectorAll('input[type=checkbox][value]').forEach(box=>{
+            box.checked = e.target.checked;
+            if (box.checked) PREV.add(box.value); else PREV.delete(box.value);
+          });
+          updateCounts(card);
+        }
+      });
+      saveTemp();
+      updateTotalCount();
+    });
+  });
+
+  // wire region clear
+  document.querySelectorAll('[data-region-clear]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const region = e.target.getAttribute('data-region-clear');
+      document.querySelectorAll('.card').forEach(card=>{
+        const title = card.querySelector('h3')?.textContent || '';
+        if (title===region){
+          card.querySelectorAll('input[type=checkbox][value]').forEach(box=>{
+            box.checked = false; PREV.delete(box.value);
+          });
+          updateCounts(card);
+        }
+      });
+      saveTemp(); updateTotalCount();
+    });
+  });
+
+  // wire country boxes
+  document.querySelectorAll('input[type=checkbox][value]').forEach(box=>{
+    box.addEventListener('change', ()=>{
+      if (box.checked) PREV.add(box.value); else PREV.delete(box.value);
+      // update the card header counts
+      const card = box.closest('.card'); updateCounts(card);
+      saveTemp(); updateTotalCount();
+    });
+  });
+
+  updateTotalCount();
+}
+
+function updateCounts(card){
+  if(!card) return;
+  const boxes = card.querySelectorAll('input[type=checkbox][value]');
+  const sel = Array.from(boxes).filter(x=>x.checked).length;
+  const total = boxes.length;
+  const meter = card.querySelector('.small');
+  if(meter) meter.textContent = `${sel}/${total} selected`;
+  const regionToggle = card.querySelector('.region-toggle');
+  if(regionToggle) regionToggle.checked = (sel===total && total>0);
+}
+
+function updateTotalCount(){
+  byId('selCount').textContent = `Selected: ${PREV.size}`;
+}
+
+function saveTemp(){
+  localStorage.setItem('tp_selection', JSON.stringify([...PREV]));
+}
+
+// --- top controls ---
+byId('search').addEventListener('input', (e)=>{ FILTER=e.target.value||''; render(); });
+byId('selectAll').addEventListener('click', ()=>{
+  document.querySelectorAll('input[type=checkbox][value]').forEach(box=>{ box.checked=true; PREV.add(box.value); });
+  document.querySelectorAll('.card').forEach(updateCounts);
+  saveTemp(); updateTotalCount();
+});
+byId('clearAll').addEventListener('click', ()=>{
+  document.querySelectorAll('input[type=checkbox][value]').forEach(box=>{ box.checked=false; PREV.delete(box.value); });
+  document.querySelectorAll('.card').forEach(updateCounts);
+  saveTemp(); updateTotalCount();
+});
+byId('invertSel').addEventListener('click', ()=>{
+  document.querySelectorAll('input[type=checkbox][value]').forEach(box=>{
+    box.checked = !box.checked;
+    if (box.checked) PREV.add(box.value); else PREV.delete(box.value);
+  });
+  document.querySelectorAll('.card').forEach(updateCounts);
+  saveTemp(); updateTotalCount();
+});
+byId('apply').addEventListener('click', ()=>{
+  // persist and go to dashboard
+  localStorage.setItem('tp_selection', JSON.stringify([...PREV]));
+  window.location.href = 'tp_rules_dashboard.html';
+});
+
+// boot
+loadRules();
+</script>
+</body>
+</html>

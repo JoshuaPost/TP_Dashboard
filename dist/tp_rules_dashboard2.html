@@ -1,0 +1,1713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TP Rules Dashboard</title>
+<link rel="stylesheet" href="Ryan_format.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root{ --canvas-w:1280px; --pad:18px; --timeline-country-w:96px; }
+body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; background:#f7f7f8; }
+.wrap{ max-width:var(--canvas-w); margin:0 auto; padding:16px var(--pad) 28px; }
+.topbar{ display:flex; gap:8px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.title{ font-weight:700; font-size:18px; }
+.meta{ color:#64748b; font-size:12px; }
+.nav{ display:flex; gap:6px; }
+.tab{ border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }
+.tab.active{ background:#c8921b; border-color:#c8921b; color:#fff; }
+
+.card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; }
+.card .section { 
+  border-top: 2px solid #bfdbfe; 
+  padding-top: 12px; 
+  margin-top: 16px; 
+}
+.card .section:first-child { 
+  border-top: none; 
+  padding-top: 0; 
+  margin-top: 0; 
+}
+.grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.grid-2 > div:first-child { 
+  padding-right: 14px; 
+  border-right: 2px solid #bfdbfe; 
+}
+.grid-2 > div:last-child { 
+  padding-left: 14px; 
+}
+.section{ margin-top:12px; }
+.section h3{ margin:6px 0 8px; font-size:16px; }
+.country-detail-name { font-size:16px; font-weight:700; }
+.section-header-primary { font-size:14px; font-weight:600; }
+.section-header-secondary { font-size:14px; font-weight:600; }
+.paired-sections{ position:relative; }
+.paired-content{ position:relative; transition:max-height 0.25s ease; }
+.paired-content.collapsed{ overflow:hidden; }
+.paired-content.collapsed::after{
+  content:'';
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:42px;
+  background:linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 80%);
+}
+.more-btn{
+  margin-top:8px;
+  border:1px solid #e5e7eb;
+  background:#f8fafc;
+  border-radius:8px;
+  padding:6px 10px;
+  cursor:pointer;
+  font-weight:600;
+  display:none;
+}
+.more-btn:hover{ background:#e2e8f0; }
+.small{ color:#64748b; font-size:12px; }
+.kv{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.country-link {
+  cursor: pointer;
+  color: #0f172a;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.country-link:hover {
+  color: #c8921b;
+  text-decoration: underline;
+}
+.subsection-divider {
+  margin: 12px 0 8px 0;
+  padding-top: 12px;
+  border-top: 1px solid #e0e7ff;
+}
+
+.region{ font-weight:700; margin-bottom:8px; }
+.country-row{ display:flex; align-items:center; gap:8px; padding:8px; border:1px solid #eef2f7; border-radius:10px; background:#fff; cursor:pointer; }
+.country-row:hover{ background:#fafbff; }
+.country-name{ font-weight:600; }
+.country-abbr{ font-size:11px; color:#94a3b8; text-transform:uppercase; }
+
+.badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:2px 8px; border-radius:999px; font-weight:700;
+  font-size:11px; line-height:1; margin-right:8px; border:1px solid transparent;
+  min-width:fit-content; white-space:nowrap;
+}
+.badge-hard { background:#d92d20; color:#fff; border-color:#d92d20; }  /* red */
+.badge-soft { background:#e5e7eb; color:#374151; border-color:#d1d5db; } /* gray */
+
+.chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; margin-right:8px; border:1px solid #e5e7eb; }
+.chip-MF { background:#fde68a; border-color:#fcd34d; }  /* MF */
+.chip-LF { background:#bfdbfe; border-color:#93c5fd; }  /* LF */
+.chip-Fm { background:#c7f9cc; border-color:#86efac; }  /* Forms/Disclosures */
+.chip-Nt { background:#fbcfe8; border-color:#f9a8d4; }  /* CbCR Notification */
+.chip-hard { background:#fecdd3; border-color:#fca5a5; color:#b91c1c; }  /* Hard-due item */
+.chip-all { background:#e5e7eb; border-color:#cbd5e1; color:#0f172a; }  /* Select all */
+.chip-toggle { cursor:pointer; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fafbfc;
+}
+
+.pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+/* Red = HARD deadline; Green = SOFT deadline */
+.pill-dot.hard {
+  background: #dc2626;  /* red */
+}
+
+.pill-dot.soft {
+  background: #10b981;  /* green */
+}
+
+
+.month-col { border:1px solid #eef2f7; border-radius:12px; padding:12px; background:#fff; }
+.month-title { font-weight:700; margin-bottom:10px; }
+.timeline-item { display:grid; grid-template-columns: var(--timeline-country-w) auto 1fr; align-items:flex-start; gap:8px; padding:6px 0; }
+.timeline-text { font-size:14px; color:#0f172a; }
+.timeline-sub { font-size:12px; color:#64748b; }
+.timeline-badge{ display:inline-flex; align-items:flex-start; justify-content:center; width:var(--timeline-country-w); min-width:var(--timeline-country-w); max-width:var(--timeline-country-w); padding:2px 6px; min-height:26px; white-space:normal; word-break:break-word; line-height:1.25; flex:0 0 var(--timeline-country-w); }
+.timeline-divider { height:1px; background:#e2e8f0; margin:6px 0; }
+.timeline-spacer { display:inline-flex; align-items:flex-start; justify-content:center; width:var(--timeline-country-w); min-width:var(--timeline-country-w); max-width:var(--timeline-country-w); min-height:26px; white-space:normal; word-break:break-word; line-height:1.25; flex:0 0 var(--timeline-country-w); }
+.hr{ height:1px; background:#eef2f7; margin:10px 0; }
+
+.anchor{ scroll-margin-top:80px; } /* for in-page anchors */
+.header-row{ display:flex; justify-content:space-between; align-items:flex-end; gap:10px; }
+.hstack{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+.btn{ padding:8px 12px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; cursor:pointer; }
+.btn.primary{ background:#c8921b; border-color:#c8921b; color:#fff; }
+.input{ padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; min-width:220px; }
+
+/* ============ PRESENTATION MODE STYLES ============ */
+.presentation-mode-toggle{ position:fixed; top:10px; right:20px; z-index:1000; background:#c8921b; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; box-shadow:0 2px 10px rgba(0,0,0,0.2); }
+.presentation-mode-toggle:hover{ background:#a67918; }
+body.presentation-mode{ background:white; font-size:14pt; font-family:'Segoe UI',Arial,sans-serif; }
+body.presentation-mode .wrap{ max-width:1920px; padding:40px; }
+body.presentation-mode .topbar,
+body.presentation-mode .nav,
+body.presentation-mode .footer{ display:none !important; }
+body.presentation-mode #panel-details #detailsHost{ display:block !important; }
+body.presentation-mode #panel-details .card{ width:100%; max-width:100%; margin-bottom:40px; }
+body.presentation-mode .country-detail-name{ font-size:24pt; margin-bottom:20px; color:#0f172a; border-bottom:3px solid #c8921b; padding-bottom:10px; }
+body.presentation-mode .section-header-primary,
+body.presentation-mode .section-header-secondary{ font-size:18pt; color:#1e40af; margin-top:30px; margin-bottom:15px; }
+body.presentation-mode .kv{ font-size:14pt; line-height:1.8; margin:10px 0; }
+body.presentation-mode .small{ font-size:12pt; color:#475569; }
+body.presentation-mode .card{ border:2px solid #cbd5e1; border-radius:0; padding:40px; margin-bottom:40px; page-break-inside:avoid; background:white; box-shadow:none; }
+.copy-btn{ position:absolute; right:10px; top:10px; background:#10b981; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:12px; opacity:0; transition:opacity 0.3s; }
+.card:hover .copy-btn,
+.section:hover .copy-btn{ opacity:1; }
+.copy-btn:hover{ background:#059669; }
+.copy-btn.copied{ background:#059669; }
+body.presentation-mode .empty-section{ display:none; }
+body.presentation-mode .region{ font-size:20pt; color:#1e40af; border-bottom:2px solid #c8921b; margin:30px 0 15px; padding-bottom:10px; }
+.executive-summary{ display:none; }
+body.presentation-mode .executive-summary{ display:block; background:#f0f9ff; border:2px solid #0284c7; padding:30px; margin-bottom:40px; border-radius:8px; }
+body.presentation-mode .executive-summary h2{ color:#0c4a6e; font-size:20pt; margin-bottom:20px; }
+body.presentation-mode .executive-summary ul{ font-size:14pt; line-height:2; }
+
+/* PPT-optimized 3-column layout for Summary */
+body.presentation-mode #summaryHost{ 
+  display:grid; 
+  grid-template-columns:repeat(3,1fr); 
+  gap:30px; 
+  column-gap:40px;
+  max-height:800px; /* Standard PPT slide height at 1920x1080 */
+  overflow:hidden;
+}
+body.presentation-mode #summaryHost .section{ 
+  break-inside:avoid; 
+  max-height:750px; 
+  overflow:hidden;
+}
+body.presentation-mode #summaryHost .region{ 
+  font-size:16pt; 
+  margin:0 0 10px 0; 
+  padding-bottom:5px;
+  border-bottom:2px solid #c8921b;
+  color:#1e40af;
+  font-weight:bold;
+}
+body.presentation-mode #summaryHost .country-row{ 
+  padding:8px 12px; 
+  font-size:12pt; 
+  border-left:3px solid transparent;
+  margin:3px 0;
+}
+body.presentation-mode #summaryHost .country-row:hover{ 
+  border-left-color:#c8921b; 
+  background:#f8f9fa;
+}
+body.presentation-mode #summaryHost .country-name{ 
+  font-size:12pt; 
+  font-weight:600;
+}
+body.presentation-mode #summaryHost .pill{ 
+  font-size:10pt; 
+  padding:2px 6px;
+}
+
+/* Pagination controls for presentation mode */
+.presentation-pagination {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  z-index: 1000;
+  align-items: center;
+  gap: 15px;
+}
+
+body.presentation-mode .presentation-pagination {
+  display: flex;
+}
+
+.presentation-pagination button {
+  background: #c8921b;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.presentation-pagination button:hover:not(:disabled) {
+  background: #a67918;
+}
+
+.presentation-pagination button:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.presentation-pagination .page-info {
+  font-weight: bold;
+  color: #1e40af;
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Page container for paginated content */
+.presentation-page {
+  display: none;
+  min-height: 800px;
+  max-height: 850px;
+  overflow: hidden;
+}
+
+body.presentation-mode .presentation-page.active {
+  display: block;
+}
+
+/* Keyboard hints */
+.presentation-hint {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #92400e;
+  display: none;
+}
+
+body.presentation-mode .presentation-hint {
+  display: block;
+}
+
+/* Details view pagination */
+body.presentation-mode #detailsHost {
+  position: relative;
+}
+
+body.presentation-mode .details-page {
+  display: none;
+  max-height: 850px;
+  overflow: hidden;
+}
+
+body.presentation-mode .details-page.active {
+  display: block;
+}
+
+/* Ensure regions distribute evenly across columns */
+body.presentation-mode .summary-wrapper {
+  display:flex;
+  flex-direction:column;
+  max-height:750px;
+  flex-wrap:wrap;
+}
+
+/* PPT slide boundaries indicator */
+body.presentation-mode .slide-boundary {
+  border:2px dashed #cbd5e1;
+  margin:40px 0;
+  padding:20px;
+  position:relative;
+}
+body.presentation-mode .slide-boundary::before {
+  content:'Slide Break';
+  position:absolute;
+  top:-12px;
+  left:20px;
+  background:white;
+  padding:0 10px;
+  color:#94a3b8;
+  font-size:10pt;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hstack">
+      <div class="title">TP Rules Dashboard</div>
+      <div class="small" id="meta"></div>
+    </div>
+    <div class="nav">
+      <button class="tab active" data-tab="summary">Summary</button>
+      <button class="tab" data-tab="details">Details</button>
+      <button class="tab" data-tab="timeline">Timeline</button>
+      <a class="tab" href="setup2.html" title="Change selection">Setup</a>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div id="panel-summary">
+    <div class="card">
+      <div class="header-row">
+        <div class="hstack">
+          <div class="small">Selection: <span id="selCount">0</span> countries</div>
+        </div>
+        <div class="hstack">
+          <button class="btn" id="clearSel">Clear selection</button>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="hstack small" id="summaryLegend" style="justify-content:flex-end; gap:14px;">
+        <!-- Filled by JS -->
+      </div>
+      <div id="summaryHost" class="grid-3"></div>
+    </div>
+  </div>
+
+  <!-- Details -->
+  <div id="panel-details" style="display:none">
+    <div class="card">
+      <div class="header-row">
+        <div class="hstack">
+          <div style="font-weight:700">Details by Country</div>
+          <div class="small">Click from Summary to jump here.</div>
+        </div>
+        <div class="hstack">
+          <input class="input" id="detailFilter" placeholder="Filter country name…" />
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div id="detailsHost" class="grid-2"></div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div id="panel-timeline" style="display:none">
+    <div class="card">
+      <div class="header-row">
+        <div id="timelineLegend" class="hstack"></div>
+        <label class="small">
+          <input type="checkbox" id="toggleSoft" checked> Show soft deadlines
+        </label>
+      </div>
+      <div class="hr"></div>
+      <div id="timelineHost"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let RULES = null;
+let SELECTED = new Set(); // Country names from localStorage
+const SUMMARY_TYPES = ['MF','LF','Fm','Nt'];
+let SUMMARY_FILTER = new Set(SUMMARY_TYPES);
+let SUMMARY_REQTYPE = 'ALL'; // 'ALL' or 'HARD'
+const TIMELINE_TYPES = ['MF','LF','Fm','Nt'];
+let TIMELINE_FILTER = new Set(TIMELINE_TYPES); // requirement types to show
+let TIMELINE_REQTYPE = 'ALL'; // 'ALL' or 'HARD' for requirement_type
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function escapeHtml(s){ 
+  return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); 
+}
+
+function getCountryId(country) {
+  // Create a safe ID from country name for DOM elements
+  return 'country_' + (country.name || '').replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function getCountryAbbr(name) {
+  // Generate 2-3 letter abbreviation from country name for badges
+  if (!name) return '??';
+  
+  // Special cases for common countries
+  const specialCases = {
+    'United States': 'USA',
+    'United Kingdom': 'UK',
+    'United Arab Emirates': 'UAE',
+    'South Africa': 'ZA',
+    'New Zealand': 'NZ',
+    'Hong Kong': 'HK',
+    'South Korea': 'KR',
+    'North Korea': 'KP',
+    'Czech Republic': 'CZ',
+    'Saudi Arabia': 'SA',
+    'Costa Rica': 'CR',
+    'El Salvador': 'SV',
+    'Dominican Republic': 'DO',
+    'Puerto Rico': 'PR'
+  };
+  
+  if (specialCases[name]) return specialCases[name];
+  
+  // If it's already a 2-3 letter code, return it
+  if (name.length <= 3 && name === name.toUpperCase()) {
+    return name;
+  }
+  
+  const words = (name || '').split(/\s+/);
+  if (words.length === 1) {
+    // Single word - take first 3 letters
+    return words[0].substring(0, 3).toUpperCase();
+  } else if (words.length === 2) {
+    // Two words - take first letter of each
+    return (words[0][0] + words[1][0]).toUpperCase();
+  } else {
+    // Multiple words - take first letter of first 3 words
+    return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
+  }
+}
+
+function badgeClassFor(reqType){ 
+  return (reqType && reqType.toUpperCase() === 'HARD') ? 'badge badge-hard' : 'badge badge-soft'; 
+}
+
+function chipFor(type, reqType){ 
+  const hard = (reqType || '').toUpperCase() === 'HARD';
+  return `<span class="chip chip-${type}${hard ? ' chip-hard' : ''}">${type}</span>`; 
+}
+
+function loadSelection(){
+  const saved = localStorage.getItem('tp_selection');
+  if (saved) { 
+    try { 
+      JSON.parse(saved).forEach(x => SELECTED.add(x)); 
+    } catch(e) {} 
+  }
+  document.getElementById('selCount').textContent = SELECTED.size;
+}
+
+function loadRules(){
+  return fetch('rules.json?_=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      RULES = data;
+      document.getElementById('meta').textContent = `Compiled: ${data.generated_at||''} • FYE: ${data.fye||''} • Countries: ${(data.countries||[]).length}`;
+      renderAll();
+    })
+    .catch(err => {
+      alert('Could not load rules.json. Make sure you are serving via http://localhost:PORT/');
+      console.error(err);
+    });
+}
+
+function applicableThresholds(items){
+  // Filter out N/A or not applicable thresholds
+  if (!items || !items.length) return null;
+  
+  const applicable = items.filter(t => {
+    const applies = (t.requirement_applies || '').toLowerCase();
+    const note = (t.note || '').toLowerCase();
+    
+    // Include only if explicitly applies
+    if (applies === 'no' || applies === 'n' || applies === 'n/a') return false;
+    if (note.includes('not applicable') || note.includes('n/a')) return false;
+    
+    return true;
+  });
+  
+  return applicable.length > 0 ? applicable : null;
+}
+
+// ---------- SUMMARY ----------
+function dotClass(items, opts = {}){
+  const hardOnly = opts.hardOnly || false;
+  if (!items || !items.length) return null;
+  
+  // Filter out N/A or not applicable items
+  const applicable = items.filter(d => {
+    const reqType = (d.requirement_type || d.class || '').toUpperCase();
+    const text = (d.text || d.DisplayText || '').toLowerCase();
+    const deadlineKind = (d.deadline_kind || '').toUpperCase();
+    
+    // Skip if explicitly N/A or not applicable
+    if (reqType === 'N/A' || reqType === 'NA') return false;
+    if (deadlineKind === 'N/A' || deadlineKind === 'NA' || deadlineKind === 'NONE') return false;
+    if (text.includes('not applicable') || text.includes('n/a')) return false;
+    if (hardOnly && reqType !== 'HARD') return false;
+    
+    return true;
+  });
+  
+  if (!applicable.length) return null;
+  
+  // Check if any applicable items are HARD
+  const hasHard = applicable.some(d => {
+    const reqType = d.requirement_type || d.class || '';
+    return reqType.toUpperCase() === 'HARD';
+  });
+  
+  return hasHard ? 'hard' : 'soft';
+}
+
+function setupSummaryLegend(){
+  const legend = document.getElementById('summaryLegend');
+  if (!legend) return;
+
+  const filterBtn = (type, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-summary-type="${type}">${label}</button>`;
+  const reqBtn = (req, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-summary-req="${req}">${label}</button>`;
+
+  legend.innerHTML = `
+    ${filterBtn('ALL', 'All', 'chip-all')}
+    ${filterBtn('MF', 'MF', 'chip-MF')} Master File &nbsp;
+    ${filterBtn('LF', 'LF', 'chip-LF')} Local File/TPD &nbsp;
+    ${filterBtn('Fm', 'Fm', 'chip-Fm')} TP Forms/Disclosures &nbsp;
+    ${filterBtn('Nt', 'Nt', 'chip-Nt')} CbCR Notification &nbsp;
+    ${reqBtn('HARD', 'Hard', 'chip-hard')} Hard deadlines
+  `;
+
+  const updateButtons = () => {
+    legend.querySelectorAll('[data-summary-type]').forEach(b => {
+      const t = b.getAttribute('data-summary-type');
+      const isAll = t === 'ALL';
+      const active = (SUMMARY_REQTYPE === 'ALL') && (isAll ? SUMMARY_FILTER.size === SUMMARY_TYPES.length : SUMMARY_FILTER.has(t));
+      b.style.opacity = active ? '1' : '0.35';
+      b.style.outline = active ? '2px solid #0f172a' : 'none';
+    });
+    legend.querySelectorAll('[data-summary-req]').forEach(b => {
+      const r = b.getAttribute('data-summary-req');
+      const active = (SUMMARY_REQTYPE === r);
+      b.style.opacity = active ? '1' : '0.35';
+      b.style.outline = active ? '2px solid #0f172a' : 'none';
+    });
+  };
+
+  legend.querySelectorAll('[data-summary-type]').forEach(btn => {
+    const type = btn.getAttribute('data-summary-type');
+    btn.addEventListener('click', () => {
+      SUMMARY_REQTYPE = 'ALL';
+      SUMMARY_FILTER = (type === 'ALL') ? new Set(SUMMARY_TYPES) : new Set([type]);
+      updateButtons();
+      renderSummary();
+    });
+  });
+
+  legend.querySelectorAll('[data-summary-req]').forEach(btn => {
+    const req = btn.getAttribute('data-summary-req');
+    btn.addEventListener('click', () => {
+      SUMMARY_REQTYPE = req;
+      SUMMARY_FILTER = new Set(SUMMARY_TYPES);
+      updateButtons();
+      renderSummary();
+    });
+  });
+
+  updateButtons();
+}
+
+function renderSummary(){
+  const host = document.getElementById('summaryHost');
+  host.innerHTML = '';
+  setupSummaryLegend();
+  const hardOnly = SUMMARY_REQTYPE === 'HARD';
+
+  const map = {};
+  (RULES.countries || []).forEach(c => {
+    if (!SELECTED.size || SELECTED.has(c.name)) {
+      const r = c.region || '(Unspecified)';
+      (map[r] = map[r] || []).push(c);
+    }
+  });
+  
+  const regions = Object.keys(map).sort((a, b) => a.localeCompare(b));
+  
+  regions.forEach(r => {
+    const col = document.createElement('div'); 
+    col.className = 'section';
+    
+    const title = document.createElement('div'); 
+    title.className = 'region'; 
+    title.textContent = r;
+    col.appendChild(title);
+
+    map[r].sort((a, b) => a.name.localeCompare(b.name));
+    
+    map[r].forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'country-row';
+      row.setAttribute('data-country', c.name);
+
+      let pills = '';
+      let visible = 0;
+
+      // Check MF - both thresholds and deadlines must be considered
+      const mfThresholdsApplicable = (c.mf_thresholds || []).some(t => {
+        const applies = (t.requirement_applies || '').toLowerCase();
+        return applies !== 'no' && applies !== 'n' && applies !== 'n/a';
+      });
+      
+      const mfDeadlinesApplicable = dotClass(c.mf_deadlines, { hardOnly });
+      
+      // Only show MF if either thresholds apply OR deadlines exist and are applicable
+      if (SUMMARY_FILTER.has('MF')) {
+        const showMf = hardOnly ? Boolean(mfDeadlinesApplicable) : (mfThresholdsApplicable || mfDeadlinesApplicable);
+        if (showMf) {
+          const mfDot = mfDeadlinesApplicable || 'soft';  // Use deadline type if exists, else soft
+          pills += `<span class="pill"><span class="pill-dot ${mfDot}"></span> MF</span>`;
+          visible++;
+        }
+      }
+
+      // Check LF - both thresholds and deadlines
+      const lfThresholdsApplicable = (c.lf_tpd_thresholds || []).some(t => {
+        const applies = (t.requirement_applies || '').toLowerCase();
+        return applies !== 'no' && applies !== 'n' && applies !== 'n/a';
+      });
+      
+      const lfDeadlinesApplicable = dotClass(c.lf_tpd_deadlines, { hardOnly });
+      
+      if (SUMMARY_FILTER.has('LF')) {
+        const showLf = hardOnly ? Boolean(lfDeadlinesApplicable) : (lfThresholdsApplicable || lfDeadlinesApplicable);
+        if (showLf) {
+          const lfDot = lfDeadlinesApplicable || 'soft';
+          pills += `<span class="pill"><span class="pill-dot ${lfDot}"></span> LF</span>`;
+          visible++;
+        }
+      }
+
+      const fmDot = dotClass(c.tp_forms, { hardOnly });
+      if (SUMMARY_FILTER.has('Fm') && fmDot) {
+        pills += `<span class="pill"><span class="pill-dot ${fmDot}"></span> Fm</span>`;
+        visible++;
+      }
+
+      const ntDot = c.cbcr && c.cbcr.requirement_type ? 
+        (c.cbcr.requirement_type.toUpperCase() === 'HARD' ? 'hard' : 'soft') : null;
+      const showNt = hardOnly ? ntDot === 'hard' : Boolean(ntDot);
+      if (SUMMARY_FILTER.has('Nt') && showNt) {
+        pills += `<span class="pill"><span class="pill-dot ${ntDot || 'soft'}"></span> Nt</span>`;
+        visible++;
+      }
+
+      if (!visible) return; // skip this country if no filtered items matched
+
+      row.innerHTML = `
+        <div style="min-width:120px">
+          <span class="country-name">${escapeHtml(c.name)}</span>
+        </div>
+        <div class="kv" style="margin-left:auto">
+          ${pills || '<span class="small">No TP requirements</span>'}
+        </div>
+      `;
+
+      row.addEventListener('click', () => {
+        switchTab('details');
+        const el = document.getElementById(getCountryId(c));
+        if (el) { 
+          el.scrollIntoView({behavior:'smooth', block:'start'}); 
+        }
+      });
+      
+      col.appendChild(row);
+    });
+
+    host.appendChild(col);
+  });
+}
+
+// ---------- DETAILS ----------
+function formatThreshold(t) {
+  if (!t) return '';
+  let parts = [];
+  
+  if (t.op && t.amount !== null && t.amount !== undefined) {
+    parts.push(`${t.op} ${t.currency || ''}${t.amount.toLocaleString()}`);
+  }
+  if (t.metric) {
+    parts.push(t.metric);
+  }
+  if (t.metric_basis) {
+    parts.push(t.metric_basis);
+  }
+  if (t.note) {
+    parts.push(t.note);
+  }
+  
+  return parts.join(' • ');
+}
+
+function formatDeadline(d) {
+  if (!d) return '';
+  return d.text || d.deadline || `${d.month_name || ''} ${d.day || ''}`.trim() || '';
+}
+
+function formatCitDeadlines(deadlines) {
+  console.log('CIT Deadlines data:', deadlines);  // DEBUG
+  if (!deadlines || !deadlines.length) return '<div class="small">No CIT deadlines data</div>';
+  
+  let html = '';
+  deadlines.forEach(d => {
+    const taxpayerType = d.taxpayer_type || 'Standard';
+    const text = d.text || formatDeadline(d) || '';
+    if (text) {
+      html += `<div class="kv">
+        <span class="small">${escapeHtml(taxpayerType)}:</span>
+        <span>${escapeHtml(text)}</span>
+      </div>`;
+    }
+  });
+  
+  return html || '<div class="small">No CIT deadline text found</div>';
+}
+
+function sectionList(items, formatter){
+  if (!items || !items.length) return '<div class="small">—</div>';
+  
+  // Group items by group_id
+  const groups = {};
+  items.forEach(item => {
+    const groupId = item.group_id || 'default';
+    if (!groups[groupId]) groups[groupId] = [];
+    groups[groupId].push(item);
+  });
+  
+  let html = '';
+  Object.keys(groups).sort().forEach(groupId => {
+    const groupItems = groups[groupId];
+    groupItems.forEach(item => {
+      const text = formatter ? formatter(item) : item.text || '';
+      if (text) {
+        html += `<div class="kv"><span>${escapeHtml(text)}</span></div>`;
+      }
+    });
+  });
+  
+  return html || '<div class="small">—</div>';
+}
+
+const DETAILS_COLLAPSE_THRESHOLD = 380;
+
+function applyCollapser(card){
+  const content = card.querySelector('.paired-content');
+  const btn = card.querySelector('.more-btn');
+  if (!content || !btn) return;
+
+  const wasExpanded = content.classList.contains('expanded');
+  content.classList.remove('collapsed');
+  if (!wasExpanded) {
+    content.classList.remove('expanded');
+  }
+  content.style.maxHeight = '';
+  btn.style.display = 'none';
+
+  if (content.scrollHeight > DETAILS_COLLAPSE_THRESHOLD) {
+    btn.style.display = 'inline-flex';
+    if (!wasExpanded) {
+      content.classList.add('collapsed');
+      content.style.maxHeight = DETAILS_COLLAPSE_THRESHOLD + 'px';
+      btn.textContent = '+ Show more';
+    } else {
+      btn.textContent = '– Show less';
+    }
+
+    btn.onclick = () => {
+      const isCollapsed = content.classList.contains('collapsed');
+      if (isCollapsed) {
+        content.classList.remove('collapsed');
+        content.classList.add('expanded');
+        content.style.maxHeight = '';
+        btn.textContent = '– Show less';
+      } else {
+        content.classList.remove('expanded');
+        content.classList.add('collapsed');
+        content.style.maxHeight = DETAILS_COLLAPSE_THRESHOLD + 'px';
+        btn.textContent = '+ Show more';
+      }
+      requestAnimationFrame(alignDetailStacks);
+    };
+  }
+}
+
+function alignDetailStacks(){
+  const host = document.getElementById('detailsHost');
+  if (!host) return;
+
+  const cards = Array.from(host.querySelectorAll('.card'));
+
+  // Reset heights and apply collapsers
+  cards.forEach(card => {
+    const content = card.querySelector('.paired-content');
+    if (content) {
+      content.style.minHeight = '';
+    }
+    applyCollapser(card);
+  });
+
+  const equalize = (selector) => {
+    for (let i = 0; i < cards.length; i += 2) {
+      const rowCards = cards.slice(i, i + 2);
+      let max = 0;
+      // Reset to natural height for measurement
+      rowCards.forEach(card => {
+        const el = card.querySelector(selector);
+        if (el) el.style.minHeight = '';
+      });
+      rowCards.forEach(card => {
+        const el = card.querySelector(selector);
+        if (el) {
+          max = Math.max(max, el.offsetHeight);
+        }
+      });
+      rowCards.forEach(card => {
+        const el = card.querySelector(selector);
+        if (el && max) {
+          el.style.minHeight = `${max}px`;
+        }
+      });
+    }
+  };
+
+  // Equalize height of paired sections for each row of two cards
+  for (let i = 0; i < cards.length; i += 2) {
+    const rowCards = cards.slice(i, i + 2);
+    let max = 0;
+    rowCards.forEach(card => {
+      const content = card.querySelector('.paired-content');
+      if (content) {
+        max = Math.max(max, content.offsetHeight);
+      }
+    });
+    rowCards.forEach(card => {
+      const content = card.querySelector('.paired-content');
+      if (content && max) {
+        content.style.minHeight = `${max}px`;
+      }
+    });
+  }
+
+  // Keep all major blocks aligned between paired cards
+  equalize('.section-master');
+  equalize('.section-forms');
+  equalize('.section-cbcr');
+  equalize('.section-cit');
+}
+
+function detailsCard(c){
+  return `
+    <div class="card anchor" id="${getCountryId(c)}">
+      <div class="header-row">
+        <div class="hstack">
+          <div class="country-detail-name">
+            <span class="country-link" 
+                  onclick="switchToSummaryAndHighlight('${escapeHtml(c.name)}')"
+                  title="Click to return to Summary">
+              ${escapeHtml(c.name)}
+            </span>
+          </div>
+        </div>
+        <div class="small">${escapeHtml(c.region || '')}</div>
+      </div>
+      <div class="hr"></div>
+
+      <div class="paired-sections section-master">
+        <div class="paired-content">
+          <div class="grid-2">
+            <div>
+              <h3 class="section-header-primary">Master File</h3>
+              <div class="small">Thresholds</div>
+              ${sectionList(c.mf_thresholds || [], formatThreshold)}
+              <div class="subsection-divider"></div>
+              <div class="small">Deadlines</div>
+              ${sectionList(c.mf_deadlines || [], formatDeadline)}
+            </div>
+            <div>
+              <h3 class="section-header-primary">Local File / TPD</h3>
+              <div class="small">Thresholds</div>
+              ${sectionList(c.lf_tpd_thresholds || [], formatThreshold)}
+              <div class="subsection-divider"></div>
+              <div class="small">Deadlines</div>
+              ${sectionList(c.lf_tpd_deadlines || [], formatDeadline)}
+            </div>
+          </div>
+        </div>
+        <button class="more-btn" type="button">+ Show more</button>
+      </div>
+
+      <div class="section section-forms">
+        <h3 class="section-header-secondary">TP Forms / Disclosures</h3>
+        ${sectionList(c.tp_forms || [], (f) => {
+          let text = f.name || '';
+          if (f.text || f.deadline) {
+            text += text ? ' — ' : '';
+            text += formatDeadline(f);
+          }
+          return text;
+        })}
+      </div>
+
+      <div class="section section-cbcr">
+        <h3 class="section-header-secondary">CbCR Notification</h3>
+        ${c.cbcr ? `<div class="kv"><span>${escapeHtml(formatDeadline(c.cbcr))}</span></div>` : '<div class="small">—</div>'}
+      </div>
+
+      <div class="section section-cit">
+        <h3 class="section-header-secondary">CIT Filing Deadlines</h3>
+        ${formatCitDeadlines(c.cit_deadlines || [])}
+      </div>
+    </div>
+  `;
+}
+
+function renderDetails(){
+  const host = document.getElementById('detailsHost');
+  const q = (document.getElementById('detailFilter').value || '').toLowerCase();
+  host.innerHTML = '';
+
+  let list = (RULES.countries || []).filter(c => !SELECTED.size || SELECTED.has(c.name));
+  
+  if (q) {
+    list = list.filter(c => c.name.toLowerCase().includes(q));
+  }
+  
+  list.sort((a, b) => a.name.localeCompare(b.name));
+
+  const frag = document.createDocumentFragment();
+  list.forEach(c => { 
+    const div = document.createElement('div'); 
+    div.innerHTML = detailsCard(c); 
+    frag.appendChild(div.firstElementChild); 
+  });
+  host.appendChild(frag);
+  alignDetailStacks();
+}
+
+// ---------- TIMELINE ----------
+function collectTimelineItems(country, showSoft){
+  const items = [];
+  const countryName = country.name;
+  const abbr = getCountryAbbr(country.name);
+
+  (country.mf_deadlines || []).forEach(d => {
+    if (!d.month) return;
+    const reqType = (d.requirement_type || '').toUpperCase();
+    if (!showSoft && reqType === 'SOFT') return;
+    items.push({
+      month: d.month, 
+      reqType: reqType, 
+      countryName: countryName,
+      abbr: abbr, 
+      type: 'MF', 
+      text: formatDeadline(d)
+    });
+  });
+  
+  (country.lf_tpd_deadlines || []).forEach(d => {
+    if (!d.month) return;
+    const reqType = (d.requirement_type || '').toUpperCase();
+    if (!showSoft && reqType === 'SOFT') return;
+    items.push({
+      month: d.month, 
+      reqType: reqType, 
+      countryName: countryName,
+      abbr: abbr, 
+      type: 'LF', 
+      text: formatDeadline(d)
+    });
+  });
+  
+  (country.tp_forms || []).forEach(d => {
+    if (!d.month) return;
+    const reqType = (d.requirement_type || '').toUpperCase();
+    if (!showSoft && reqType === 'SOFT') return;
+    const label = d.name ? `${d.name} — ${formatDeadline(d)}` : formatDeadline(d);
+    items.push({
+      month: d.month, 
+      reqType: reqType, 
+      countryName: countryName,
+      abbr: abbr, 
+      type: 'Fm', 
+      text: label
+    });
+  });
+  
+  if (country.cbcr && country.cbcr.month) {
+    const reqType = (country.cbcr.requirement_type || '').toUpperCase();
+    if (showSoft || reqType === 'HARD') {
+      items.push({
+        month: country.cbcr.month, 
+        reqType: reqType, 
+        countryName: countryName,
+        abbr: abbr, 
+        type: 'Nt', 
+        text: formatDeadline(country.cbcr)
+      });
+    }
+  }
+  
+  return items;
+}
+
+function renderTimeline(){
+  const hardOnly = TIMELINE_REQTYPE === 'HARD';
+  const showSoft = hardOnly ? false : (document.getElementById('toggleSoft') ? document.getElementById('toggleSoft').checked : true);
+
+  const itemsByMonth = Array.from({length: 12}, () => []);
+
+  (RULES.countries || []).forEach(c => {
+    if (!SELECTED.size || SELECTED.has(c.name)) {
+      collectTimelineItems(c, showSoft).forEach(it => {
+        if (it.month >= 1 && it.month <= 12) {
+          // Filter by selected requirement types and requirement_type (hard-only)
+          if (TIMELINE_FILTER.has(it.type) && (!hardOnly || (it.reqType || '').toUpperCase() === 'HARD')) {
+            itemsByMonth[it.month - 1].push(it);
+          }
+        }
+      });
+    }
+  });
+  
+  // Sort items within each month
+  for (let i = 0; i < 12; i++) {
+    itemsByMonth[i].sort((a, b) => {
+      if (a.countryName !== b.countryName) return a.countryName.localeCompare(b.countryName);
+      if (a.type !== b.type) return a.type.localeCompare(b.type);
+      return (a.text || '').localeCompare(b.text || '');
+    });
+  }
+
+  const host = document.getElementById('timelineHost');
+  host.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'grid-3';
+
+  for (let m = 0; m < 12; m++) {
+    const col = document.createElement('div'); 
+    col.className = 'month-col';
+    
+    const title = document.createElement('div'); 
+    title.className = 'month-title'; 
+    title.textContent = MONTHS[m];
+    col.appendChild(title);
+
+    const list = itemsByMonth[m];
+    if (!list.length) {
+      const empty = document.createElement('div'); 
+      empty.className = 'timeline-sub'; 
+      empty.textContent = '—';
+      col.appendChild(empty);
+    } else {
+      // Group by country within the month to show the country once
+      const countryGroups = {};
+      list.forEach(it => {
+        if (!countryGroups[it.countryName]) countryGroups[it.countryName] = [];
+        countryGroups[it.countryName].push(it);
+      });
+
+      const groupedCountries = Object.keys(countryGroups).sort();
+      groupedCountries.forEach((country, idx) => {
+        const items = countryGroups[country];
+
+        items.forEach((it, i) => {
+          const row = document.createElement('div'); 
+          row.className = 'timeline-item';
+          const badgeHtml = (i === 0)
+            ? `<span class="badge badge-soft timeline-badge" title="${escapeHtml(it.countryName)}">
+                 ${escapeHtml(it.countryName)}
+               </span>`
+            : `<span class="timeline-spacer"></span>`;
+
+          const chipHtml = `${chipFor(it.type, it.reqType)}`;
+          const textHtml = `<span class="timeline-text">${escapeHtml(it.text)}</span>`;
+
+          row.innerHTML = `
+            ${badgeHtml}
+            ${chipHtml}
+            ${textHtml}
+          `;
+          col.appendChild(row);
+        });
+
+        // Divider between countries when multiple groups exist
+        if (groupedCountries.length > 1 && idx < groupedCountries.length - 1) {
+          const divider = document.createElement('div');
+          divider.className = 'timeline-divider';
+          col.appendChild(divider);
+        }
+      });
+    }
+    grid.appendChild(col);
+  }
+  host.appendChild(grid);
+
+  const legend = document.getElementById('timelineLegend');
+  if (legend) {
+    const filterBtn = (type, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-timeline-type="${type}">${label}</button>`;
+    const reqBtn = (req, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-timeline-req="${req}">${label}</button>`;
+    legend.innerHTML = `
+      <span class="badge badge-soft" style="min-width: 80px; padding: 2px 8px;">Country</span> Country
+      ${filterBtn('ALL', 'All', 'chip-all')}
+      ${filterBtn('MF', 'MF', 'chip-MF')} Master File &nbsp;
+      ${filterBtn('LF', 'LF', 'chip-LF')} Local File/TPD &nbsp;
+      ${filterBtn('Fm', 'Fm', 'chip-Fm')} TP Forms/Disclosures &nbsp;
+      ${filterBtn('Nt', 'Nt', 'chip-Nt')} CbCR Notification &nbsp;
+      ${reqBtn('HARD', 'Hard', 'chip-hard')} Hard deadline
+    `;
+
+    const updateButtons = () => {
+      legend.querySelectorAll('[data-timeline-type]').forEach(b => {
+        const t = b.getAttribute('data-timeline-type');
+        const isAll = t === 'ALL';
+        const active = (TIMELINE_REQTYPE === 'ALL') && (isAll ? TIMELINE_FILTER.size === TIMELINE_TYPES.length : TIMELINE_FILTER.has(t));
+        b.style.opacity = active ? '1' : '0.35';
+        b.style.outline = active ? '2px solid #0f172a' : 'none';
+      });
+      legend.querySelectorAll('[data-timeline-req]').forEach(b => {
+        const r = b.getAttribute('data-timeline-req');
+        const active = (TIMELINE_REQTYPE === r);
+        b.style.opacity = active ? '1' : '0.35';
+        b.style.outline = active ? '2px solid #0f172a' : 'none';
+      });
+    };
+
+    legend.querySelectorAll('[data-timeline-type]').forEach(btn => {
+      const type = btn.getAttribute('data-timeline-type');
+      btn.addEventListener('click', () => {
+        TIMELINE_REQTYPE = 'ALL';
+        if (type === 'ALL') {
+          TIMELINE_FILTER = new Set(TIMELINE_TYPES);
+        } else {
+          // Exclusive selection: pick only this type
+          TIMELINE_FILTER = new Set([type]);
+        }
+        updateButtons();
+        renderTimeline();
+      });
+    });
+
+    legend.querySelectorAll('[data-timeline-req]').forEach(btn => {
+      const req = btn.getAttribute('data-timeline-req');
+      btn.addEventListener('click', () => {
+        // Hard filter: apply to all requirement types
+        TIMELINE_REQTYPE = req;
+        TIMELINE_FILTER = new Set(TIMELINE_TYPES);
+        updateButtons();
+        renderTimeline();
+      });
+    });
+
+    updateButtons();
+  }
+}
+
+// ---------- Tabs & wiring ----------
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('[id^="panel-"]').forEach(p => p.style.display = 'none');
+  document.querySelector(`.tab[data-tab="${name}"]`)?.classList.add('active');
+  document.getElementById(`panel-${name}`).style.display = 'block';
+  
+  if (name === 'summary') renderSummary();
+  if (name === 'details') renderDetails();
+  if (name === 'timeline') renderTimeline();
+}
+
+function switchToSummaryAndHighlight(countryName) {
+  // Switch to Summary tab
+  switchTab('summary');
+  
+  // Find and highlight the country after a brief delay for rendering
+  setTimeout(() => {
+    // Find the country row
+    const countryRows = document.querySelectorAll('.country-row');
+    countryRows.forEach(row => {
+      const nameEl = row.querySelector('.country-name');
+      if (nameEl && nameEl.textContent === countryName) {
+        // Scroll to the country
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Add temporary highlight
+        row.style.backgroundColor = '#fef3c7';
+        row.style.transition = 'background-color 0.3s';
+        
+        // Remove highlight after 2 seconds
+        setTimeout(() => {
+          row.style.backgroundColor = '';
+        }, 2000);
+      }
+    });
+  }, 100);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Alt+S = Summary, Alt+D = Details, Alt+T = Timeline, Alt+U = Setup
+  if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+    switch(e.key.toLowerCase()) {
+      case 's':
+        e.preventDefault();
+        switchTab('summary');
+        break;
+      case 'd':
+        e.preventDefault();
+        switchTab('details');
+        break;
+      case 't':
+        e.preventDefault();
+        switchTab('timeline');
+        break;
+      case 'u':
+        e.preventDefault();
+        window.location.href = 'setup2.html';
+        break;
+    }
+  }
+  
+  // Escape key to clear filter in Details view
+  if (e.key === 'Escape') {
+    const detailFilter = document.getElementById('detailFilter');
+    if (detailFilter && document.getElementById('panel-details').style.display !== 'none') {
+      detailFilter.value = '';
+      renderDetails();
+    }
+  }
+});
+
+document.querySelectorAll('.tab[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+});
+
+document.getElementById('toggleSoft').addEventListener('change', renderTimeline);
+document.getElementById('detailFilter').addEventListener('input', renderDetails);
+
+document.getElementById('clearSel').addEventListener('click', () => {
+  SELECTED.clear(); 
+  localStorage.setItem('tp_selection', JSON.stringify([]));
+  document.getElementById('selCount').textContent = '0';
+  renderAll();
+});
+
+function renderAll(){
+  renderSummary();
+  renderDetails();
+  renderTimeline();
+}
+
+loadSelection();
+loadRules();
+
+// ============ PRESENTATION MODE FUNCTIONALITY ============
+let presentationMode = false;
+let currentPage = 1;
+let totalPages = 1;
+let pagesContent = [];
+
+function togglePresentationMode() {
+  presentationMode = !presentationMode;
+  const body = document.body;
+  const button = document.getElementById('presentationModeBtn');
+  
+  if (presentationMode) {
+    body.classList.add('presentation-mode');
+    button.textContent = '📖 Exit Presentation Mode';
+    button.style.background = '#dc2626';
+    
+    // Add pagination controls
+    addPaginationControls();
+    
+    // Add keyboard hint
+    addKeyboardHint();
+    
+    // Paginate current view
+    paginateCurrentView();
+    
+    // Add copy buttons to all sections
+    addCopyButtons();
+    
+    // Add executive summary if in Summary view
+    if (document.getElementById('panel-summary').style.display !== 'none') {
+      addExecutiveSummary();
+    }
+    
+    // Hide empty sections
+    hideEmptySections();
+    
+  } else {
+    body.classList.remove('presentation-mode');
+    button.textContent = '📊 Presentation Mode';
+    button.style.background = '#c8921b';
+    
+    // Remove presentation elements
+    removePresentationElements();
+    
+    // Re-render normal view
+    const activePanel = document.querySelector('[id^="panel-"]:not([style*="none"])');
+    if (activePanel) {
+      if (activePanel.id === 'panel-summary') renderSummary();
+      if (activePanel.id === 'panel-details') renderDetails();
+    }
+  }
+}
+
+function addPaginationControls() {
+  if (!document.getElementById('presentationPagination')) {
+    const pagination = document.createElement('div');
+    pagination.id = 'presentationPagination';
+    pagination.className = 'presentation-pagination';
+    pagination.innerHTML = `
+      <button id="prevPageBtn" onclick="previousPage()">← Previous</button>
+      <span class="page-info">Page <span id="currentPageNum">1</span> of <span id="totalPagesNum">1</span></span>
+      <button id="nextPageBtn" onclick="nextPage()">Next →</button>
+    `;
+    document.body.appendChild(pagination);
+  }
+}
+
+function addKeyboardHint() {
+  if (!document.getElementById('presentationHint')) {
+    const hint = document.createElement('div');
+    hint.id = 'presentationHint';
+    hint.className = 'presentation-hint';
+    hint.innerHTML = '⌨️ Use ← → arrow keys to navigate pages';
+    document.body.appendChild(hint);
+  }
+}
+
+function paginateCurrentView() {
+  const activePanel = document.querySelector('[id^="panel-"]:not([style*="none"])');
+  
+  if (activePanel.id === 'panel-summary') {
+    paginateSummaryView();
+  } else if (activePanel.id === 'panel-details') {
+    paginateDetailsView();
+  } else if (activePanel.id === 'panel-timeline') {
+    paginateTimelineView();
+  }
+  
+  updatePaginationButtons();
+}
+
+function paginateSummaryView() {
+  const summaryHost = document.getElementById('summaryHost');
+  const countriesPerPage = 45; // Approximately 15 per column x 3 columns
+  
+  // Get all countries grouped by region
+  const regionData = {};
+  (RULES.countries || []).forEach(c => {
+    if (!SELECTED.size || SELECTED.has(c.name)) {
+      const r = c.region || '(Unspecified)';
+      if (!regionData[r]) regionData[r] = [];
+      regionData[r].push(c);
+    }
+  });
+  
+  // Create pages
+  pagesContent = [];
+  let currentPageCountries = 0;
+  let currentPageHTML = '';
+  let columnHTML = ['', '', ''];
+  let currentColumn = 0;
+  let countriesPerColumn = Math.ceil(countriesPerPage / 3);
+  let columnCount = 0;
+  
+  const regions = Object.keys(regionData).sort();
+  
+  regions.forEach((region, regionIndex) => {
+    const countries = regionData[region];
+    countries.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Check if we need a new page
+    if (currentPageCountries > 0 && currentPageCountries + countries.length > countriesPerPage) {
+      // Save current page
+      pagesContent.push(columnHTML.map((col, idx) => 
+        `<div class="summary-column" style="grid-column:${idx + 1}">${col}</div>`
+      ).join(''));
+      
+      // Reset for new page
+      columnHTML = ['', '', ''];
+      currentColumn = 0;
+      columnCount = 0;
+      currentPageCountries = 0;
+    }
+    
+    // Check if we need to move to next column
+    if (columnCount > 0 && columnCount + countries.length > countriesPerColumn && currentColumn < 2) {
+      currentColumn++;
+      columnCount = 0;
+    }
+    
+    // Build region HTML
+    let regionHTML = `<div class="section ppt-region">
+      <div class="region">${escapeHtml(region)}</div>`;
+    
+    countries.forEach(c => {
+      let pills = '';
+      
+      // Add requirement pills
+      const mfHas = (c.mf_thresholds || []).some(t => t.requirement_applies !== 'No') || 
+                    (c.mf_deadlines || []).length > 0;
+      const lfHas = (c.lf_tpd_thresholds || []).some(t => t.requirement_applies !== 'No') || 
+                    (c.lf_tpd_deadlines || []).length > 0;
+      
+      if (mfHas) pills += '<span class="pill">MF</span>';
+      if (lfHas) pills += '<span class="pill">LF</span>';
+      if (c.tp_forms && c.tp_forms.length) pills += '<span class="pill">Fm</span>';
+      if (c.cbcr) pills += '<span class="pill">Nt</span>';
+      
+      regionHTML += `
+        <div class="country-row">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="country-name">${escapeHtml(c.name)}</span>
+            <div class="kv">${pills}</div>
+          </div>
+        </div>`;
+    });
+    
+    regionHTML += '</div>';
+    
+    columnHTML[currentColumn] += regionHTML;
+    columnCount += countries.length;
+    currentPageCountries += countries.length;
+    
+    // If this is the last region, save the page
+    if (regionIndex === regions.length - 1) {
+      pagesContent.push(columnHTML.map((col, idx) => 
+        `<div class="summary-column" style="grid-column:${idx + 1}">${col}</div>`
+      ).join(''));
+    }
+  });
+  
+  // Display first page
+  totalPages = pagesContent.length || 1;
+  currentPage = 1;
+  displayPage(currentPage);
+}
+
+function paginateDetailsView() {
+  const detailsHost = document.getElementById('detailsHost');
+  const countriesPerPage = 1; // 1 detailed country card per page for presentation slides
+  
+  const cards = Array.from(detailsHost.querySelectorAll('.card'));
+  pagesContent = [];
+  
+  for (let i = 0; i < cards.length; i += countriesPerPage) {
+    const pageCards = cards.slice(i, i + countriesPerPage);
+    const pageHTML = pageCards.map(card => card.outerHTML).join('');
+    pagesContent.push(pageHTML);
+  }
+  
+  totalPages = pagesContent.length || 1;
+  currentPage = 1;
+  displayPage(currentPage);
+}
+
+function paginateTimelineView() {
+  // Timeline view can show 3-4 months per page
+  const monthsPerPage = 3;
+  const timelineHost = document.getElementById('timelineHost');
+  const months = Array.from(timelineHost.querySelectorAll('.month-col'));
+  
+  pagesContent = [];
+  
+  for (let i = 0; i < months.length; i += monthsPerPage) {
+    const pageMonths = months.slice(i, i + monthsPerPage);
+    const pageHTML = `<div class="grid-3">${pageMonths.map(m => m.outerHTML).join('')}</div>`;
+    pagesContent.push(pageHTML);
+  }
+  
+  totalPages = pagesContent.length || 1;
+  currentPage = 1;
+  displayPage(currentPage);
+}
+
+function displayPage(pageNum) {
+  if (pageNum < 1 || pageNum > totalPages) return;
+  
+  currentPage = pageNum;
+  const activePanel = document.querySelector('[id^="panel-"]:not([style*="none"])');
+  const hostElement = activePanel.querySelector('#summaryHost, #detailsHost, #timelineHost');
+  
+  if (hostElement && pagesContent[pageNum - 1]) {
+    hostElement.innerHTML = pagesContent[pageNum - 1];
+    addCopyButtons(); // Re-add copy buttons for new content
+  }
+  
+  updatePaginationButtons();
+}
+
+function nextPage() {
+  if (currentPage < totalPages) {
+    displayPage(currentPage + 1);
+  }
+}
+
+function previousPage() {
+  if (currentPage > 1) {
+    displayPage(currentPage - 1);
+  }
+}
+
+function updatePaginationButtons() {
+  document.getElementById('currentPageNum').textContent = currentPage;
+  document.getElementById('totalPagesNum').textContent = totalPages;
+  document.getElementById('prevPageBtn').disabled = currentPage === 1;
+  document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+}
+
+// Keyboard navigation for presentation mode
+document.addEventListener('keydown', function(e) {
+  if (presentationMode) {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nextPage();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      previousPage();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      displayPage(1);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      displayPage(totalPages);
+    }
+  }
+  
+  if (e.altKey && e.key === 'p') {
+    e.preventDefault();
+    togglePresentationMode();
+  }
+});
+
+function addCopyButtons() {
+  document.querySelectorAll('.card').forEach(card => {
+    if (!card.querySelector('.copy-btn')) {
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = '📋 Copy';
+      copyBtn.onclick = () => copyToClipboard(card);
+      card.style.position = 'relative';
+      card.appendChild(copyBtn);
+    }
+  });
+}
+
+function copyToClipboard(element) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  
+  const copyBtns = element.querySelectorAll('.copy-btn');
+  copyBtns.forEach(btn => btn.style.display = 'none');
+  
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  
+  try {
+    document.execCommand('copy');
+    const btn = element.querySelector('.copy-btn');
+    if (btn) {
+      btn.textContent = '✅ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '📋 Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    }
+  } catch (err) {
+    console.error('Failed to copy:', err);
+  }
+  
+  copyBtns.forEach(btn => btn.style.display = '');
+  selection.removeAllRanges();
+}
+
+function addExecutiveSummary() {
+  const summaryPanel = document.getElementById('panel-summary');
+  if (!summaryPanel.querySelector('.executive-summary')) {
+    const totalCountries = SELECTED.size || 0;
+    const regionsSet = new Set();
+    const requirementsCount = { mf: 0, lf: 0, forms: 0, cbcr: 0 };
+    
+    (RULES.countries || []).forEach(c => {
+      if (!SELECTED.size || SELECTED.has(c.name)) {
+        regionsSet.add(c.region || 'Unspecified');
+        if (c.mf_deadlines && c.mf_deadlines.length) requirementsCount.mf++;
+        if (c.lf_tpd_deadlines && c.lf_tpd_deadlines.length) requirementsCount.lf++;
+        if (c.tp_forms && c.tp_forms.length) requirementsCount.forms++;
+        if (c.cbcr) requirementsCount.cbcr++;
+      }
+    });
+    
+    const summaryHtml = `
+      <div class="executive-summary">
+        <h2>Executive Summary - Transfer Pricing Compliance Requirements</h2>
+        <ul>
+          <li><strong>Countries in Scope:</strong> ${totalCountries}</li>
+          <li><strong>Regions Covered:</strong> ${Array.from(regionsSet).join(', ')}</li>
+          <li><strong>Master File Requirements:</strong> ${requirementsCount.mf} countries</li>
+          <li><strong>Local File Requirements:</strong> ${requirementsCount.lf} countries</li>
+          <li><strong>TP Forms/Disclosures:</strong> ${requirementsCount.forms} countries</li>
+          <li><strong>CbCR Notifications:</strong> ${requirementsCount.cbcr} countries</li>
+          <li><strong>Report Date:</strong> ${new Date().toLocaleDateString()}</li>
+          <li><strong>FYE:</strong> ${RULES.fye || 'Not specified'}</li>
+        </ul>
+      </div>
+    `;
+    
+    summaryPanel.insertAdjacentHTML('afterbegin', summaryHtml);
+  }
+}
+
+function hideEmptySections() {
+  document.querySelectorAll('.section').forEach(section => {
+    const hasContent = section.querySelector('.kv') && 
+                      section.querySelector('.kv').textContent.trim() !== '—';
+    if (!hasContent) {
+      section.classList.add('empty-section');
+    }
+  });
+}
+
+function removePresentationElements() {
+  document.querySelectorAll('.copy-btn').forEach(btn => btn.remove());
+  document.querySelectorAll('.executive-summary').forEach(elem => elem.remove());
+  document.querySelectorAll('.empty-section').forEach(section => {
+    section.classList.remove('empty-section');
+  });
+  
+  // Remove pagination controls
+  const pagination = document.getElementById('presentationPagination');
+  if (pagination) pagination.remove();
+  
+  // Remove keyboard hint
+  const hint = document.getElementById('presentationHint');
+  if (hint) hint.remove();
+  
+  // Reset page tracking
+  currentPage = 1;
+  totalPages = 1;
+  pagesContent = [];
+}
+
+// Re-align detail cards on resize to keep TP Forms / Disclosures in line
+window.addEventListener('resize', alignDetailStacks);
+
+// Add presentation mode button on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const button = document.createElement('button');
+  button.id = 'presentationModeBtn';
+  button.className = 'presentation-mode-toggle';
+  button.textContent = '📊 Presentation Mode';
+  button.onclick = togglePresentationMode;
+  document.body.appendChild(button);
+});
+
+// Keyboard shortcut Alt+P for presentation mode
+document.addEventListener('keydown', function(e) {
+  if (e.altKey && e.key === 'p') {
+    e.preventDefault();
+    togglePresentationMode();
+  }
+});
+</script>
+</body>
+</html>

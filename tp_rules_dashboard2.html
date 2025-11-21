@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-:root{ --canvas-w:1280px; --pad:18px; }
+:root{ --canvas-w:1280px; --pad:18px; --timeline-country-w:96px; }
 body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; background:#f7f7f8; }
 .wrap{ max-width:var(--canvas-w); margin:0 auto; padding:16px var(--pad) 28px; }
 .topbar{ display:flex; gap:8px; align-items:center; justify-content:space-between; margin-bottom:10px; }
@@ -43,7 +43,7 @@ body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; ba
 .section-header-primary { font-size:14px; font-weight:600; }
 .section-header-secondary { font-size:14px; font-weight:600; }
 .paired-sections{ position:relative; }
-.paired-content{ transition:max-height 0.25s ease; }
+.paired-content{ position:relative; transition:max-height 0.25s ease; }
 .paired-content.collapsed{ overflow:hidden; }
 .paired-content.collapsed::after{
   content:'';
@@ -101,6 +101,9 @@ body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; ba
 .chip-LF { background:#bfdbfe; border-color:#93c5fd; }  /* LF */
 .chip-Fm { background:#c7f9cc; border-color:#86efac; }  /* Forms/Disclosures */
 .chip-Nt { background:#fbcfe8; border-color:#f9a8d4; }  /* CbCR Notification */
+.chip-hard { background:#fecdd3; border-color:#fca5a5; color:#b91c1c; }  /* Hard-due item */
+.chip-all { background:#e5e7eb; border-color:#cbd5e1; color:#0f172a; }  /* Select all */
+.chip-toggle { cursor:pointer; }
 
 .pill {
   display: inline-flex;
@@ -131,9 +134,12 @@ body{ font:15px/1.5 system-ui,Segoe UI,Roboto,Arial; margin:0; color:#0f172a; ba
 
 .month-col { border:1px solid #eef2f7; border-radius:12px; padding:12px; background:#fff; }
 .month-title { font-weight:700; margin-bottom:10px; }
-.timeline-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; }
+.timeline-item { display:grid; grid-template-columns: var(--timeline-country-w) auto 1fr; align-items:flex-start; gap:8px; padding:6px 0; }
 .timeline-text { font-size:14px; color:#0f172a; }
 .timeline-sub { font-size:12px; color:#64748b; }
+.timeline-badge{ display:inline-flex; align-items:flex-start; justify-content:center; width:var(--timeline-country-w); min-width:var(--timeline-country-w); max-width:var(--timeline-country-w); padding:2px 6px; min-height:26px; white-space:normal; word-break:break-word; line-height:1.25; flex:0 0 var(--timeline-country-w); }
+.timeline-divider { height:1px; background:#e2e8f0; margin:6px 0; }
+.timeline-spacer { display:inline-flex; align-items:flex-start; justify-content:center; width:var(--timeline-country-w); min-width:var(--timeline-country-w); max-width:var(--timeline-country-w); min-height:26px; white-space:normal; word-break:break-word; line-height:1.25; flex:0 0 var(--timeline-country-w); }
 .hr{ height:1px; background:#eef2f7; margin:10px 0; }
 
 .anchor{ scroll-margin-top:80px; } /* for in-page anchors */
@@ -152,6 +158,8 @@ body.presentation-mode .wrap{ max-width:1920px; padding:40px; }
 body.presentation-mode .topbar,
 body.presentation-mode .nav,
 body.presentation-mode .footer{ display:none !important; }
+body.presentation-mode #panel-details #detailsHost{ display:block !important; }
+body.presentation-mode #panel-details .card{ width:100%; max-width:100%; margin-bottom:40px; }
 body.presentation-mode .country-detail-name{ font-size:24pt; margin-bottom:20px; color:#0f172a; border-bottom:3px solid #c8921b; padding-bottom:10px; }
 body.presentation-mode .section-header-primary,
 body.presentation-mode .section-header-secondary{ font-size:18pt; color:#1e40af; margin-top:30px; margin-bottom:15px; }
@@ -360,12 +368,7 @@ body.presentation-mode .slide-boundary::before {
       </div>
       <div class="hr"></div>
       <div class="hstack small" id="summaryLegend" style="justify-content:flex-end; gap:14px;">
-        <span class="pill"><span class="pill-dot hard"></span> HARD deadline</span>
-        <span class="pill"><span class="pill-dot soft"></span> SOFT deadline</span>
-        <span class="pill"><strong>MF</strong>&nbsp;Master File</span>
-        <span class="pill"><strong>LF</strong>&nbsp;Local File / TPD</span>
-        <span class="pill"><strong>Fm</strong>&nbsp;TP Forms / Disclosures</span>
-        <span class="pill"><strong>Nt</strong>&nbsp;CbCR Notification</span>
+        <!-- Filled by JS -->
       </div>
       <div id="summaryHost" class="grid-3"></div>
     </div>
@@ -406,6 +409,12 @@ body.presentation-mode .slide-boundary::before {
 <script>
 let RULES = null;
 let SELECTED = new Set(); // Country names from localStorage
+const SUMMARY_TYPES = ['MF','LF','Fm','Nt'];
+let SUMMARY_FILTER = new Set(SUMMARY_TYPES);
+let SUMMARY_REQTYPE = 'ALL'; // 'ALL' or 'HARD'
+const TIMELINE_TYPES = ['MF','LF','Fm','Nt'];
+let TIMELINE_FILTER = new Set(TIMELINE_TYPES); // requirement types to show
+let TIMELINE_REQTYPE = 'ALL'; // 'ALL' or 'HARD' for requirement_type
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function escapeHtml(s){ 
@@ -463,8 +472,9 @@ function badgeClassFor(reqType){
   return (reqType && reqType.toUpperCase() === 'HARD') ? 'badge badge-hard' : 'badge badge-soft'; 
 }
 
-function chipFor(type){ 
-  return `<span class="chip chip-${type}">${type}</span>`; 
+function chipFor(type, reqType){ 
+  const hard = (reqType || '').toUpperCase() === 'HARD';
+  return `<span class="chip chip-${type}${hard ? ' chip-hard' : ''}">${type}</span>`; 
 }
 
 function loadSelection(){
@@ -510,7 +520,8 @@ function applicableThresholds(items){
 }
 
 // ---------- SUMMARY ----------
-function dotClass(items){
+function dotClass(items, opts = {}){
+  const hardOnly = opts.hardOnly || false;
   if (!items || !items.length) return null;
   
   // Filter out N/A or not applicable items
@@ -523,6 +534,7 @@ function dotClass(items){
     if (reqType === 'N/A' || reqType === 'NA') return false;
     if (deadlineKind === 'N/A' || deadlineKind === 'NA' || deadlineKind === 'NONE') return false;
     if (text.includes('not applicable') || text.includes('n/a')) return false;
+    if (hardOnly && reqType !== 'HARD') return false;
     
     return true;
   });
@@ -538,9 +550,66 @@ function dotClass(items){
   return hasHard ? 'hard' : 'soft';
 }
 
+function setupSummaryLegend(){
+  const legend = document.getElementById('summaryLegend');
+  if (!legend) return;
+
+  const filterBtn = (type, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-summary-type="${type}">${label}</button>`;
+  const reqBtn = (req, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-summary-req="${req}">${label}</button>`;
+
+  legend.innerHTML = `
+    ${filterBtn('ALL', 'All', 'chip-all')}
+    ${filterBtn('MF', 'MF', 'chip-MF')} Master File &nbsp;
+    ${filterBtn('LF', 'LF', 'chip-LF')} Local File/TPD &nbsp;
+    ${filterBtn('Fm', 'Fm', 'chip-Fm')} TP Forms/Disclosures &nbsp;
+    ${filterBtn('Nt', 'Nt', 'chip-Nt')} CbCR Notification &nbsp;
+    ${reqBtn('HARD', 'Hard', 'chip-hard')} Hard deadlines
+  `;
+
+  const updateButtons = () => {
+    legend.querySelectorAll('[data-summary-type]').forEach(b => {
+      const t = b.getAttribute('data-summary-type');
+      const isAll = t === 'ALL';
+      const active = (SUMMARY_REQTYPE === 'ALL') && (isAll ? SUMMARY_FILTER.size === SUMMARY_TYPES.length : SUMMARY_FILTER.has(t));
+      b.style.opacity = active ? '1' : '0.35';
+      b.style.outline = active ? '2px solid #0f172a' : 'none';
+    });
+    legend.querySelectorAll('[data-summary-req]').forEach(b => {
+      const r = b.getAttribute('data-summary-req');
+      const active = (SUMMARY_REQTYPE === r);
+      b.style.opacity = active ? '1' : '0.35';
+      b.style.outline = active ? '2px solid #0f172a' : 'none';
+    });
+  };
+
+  legend.querySelectorAll('[data-summary-type]').forEach(btn => {
+    const type = btn.getAttribute('data-summary-type');
+    btn.addEventListener('click', () => {
+      SUMMARY_REQTYPE = 'ALL';
+      SUMMARY_FILTER = (type === 'ALL') ? new Set(SUMMARY_TYPES) : new Set([type]);
+      updateButtons();
+      renderSummary();
+    });
+  });
+
+  legend.querySelectorAll('[data-summary-req]').forEach(btn => {
+    const req = btn.getAttribute('data-summary-req');
+    btn.addEventListener('click', () => {
+      SUMMARY_REQTYPE = req;
+      SUMMARY_FILTER = new Set(SUMMARY_TYPES);
+      updateButtons();
+      renderSummary();
+    });
+  });
+
+  updateButtons();
+}
+
 function renderSummary(){
   const host = document.getElementById('summaryHost');
   host.innerHTML = '';
+  setupSummaryLegend();
+  const hardOnly = SUMMARY_REQTYPE === 'HARD';
 
   const map = {};
   (RULES.countries || []).forEach(c => {
@@ -569,6 +638,7 @@ function renderSummary(){
       row.setAttribute('data-country', c.name);
 
       let pills = '';
+      let visible = 0;
 
       // Check MF - both thresholds and deadlines must be considered
       const mfThresholdsApplicable = (c.mf_thresholds || []).some(t => {
@@ -576,12 +646,16 @@ function renderSummary(){
         return applies !== 'no' && applies !== 'n' && applies !== 'n/a';
       });
       
-      const mfDeadlinesApplicable = dotClass(c.mf_deadlines);
+      const mfDeadlinesApplicable = dotClass(c.mf_deadlines, { hardOnly });
       
       // Only show MF if either thresholds apply OR deadlines exist and are applicable
-      if (mfThresholdsApplicable || mfDeadlinesApplicable) {
-        const mfDot = mfDeadlinesApplicable || 'soft';  // Use deadline type if exists, else soft
-        pills += `<span class="pill"><span class="pill-dot ${mfDot}"></span> MF</span>`;
+      if (SUMMARY_FILTER.has('MF')) {
+        const showMf = hardOnly ? Boolean(mfDeadlinesApplicable) : (mfThresholdsApplicable || mfDeadlinesApplicable);
+        if (showMf) {
+          const mfDot = mfDeadlinesApplicable || 'soft';  // Use deadline type if exists, else soft
+          pills += `<span class="pill"><span class="pill-dot ${mfDot}"></span> MF</span>`;
+          visible++;
+        }
       }
 
       // Check LF - both thresholds and deadlines
@@ -590,19 +664,32 @@ function renderSummary(){
         return applies !== 'no' && applies !== 'n' && applies !== 'n/a';
       });
       
-      const lfDeadlinesApplicable = dotClass(c.lf_tpd_deadlines);
+      const lfDeadlinesApplicable = dotClass(c.lf_tpd_deadlines, { hardOnly });
       
-      if (lfThresholdsApplicable || lfDeadlinesApplicable) {
-        const lfDot = lfDeadlinesApplicable || 'soft';
-        pills += `<span class="pill"><span class="pill-dot ${lfDot}"></span> LF</span>`;
+      if (SUMMARY_FILTER.has('LF')) {
+        const showLf = hardOnly ? Boolean(lfDeadlinesApplicable) : (lfThresholdsApplicable || lfDeadlinesApplicable);
+        if (showLf) {
+          const lfDot = lfDeadlinesApplicable || 'soft';
+          pills += `<span class="pill"><span class="pill-dot ${lfDot}"></span> LF</span>`;
+          visible++;
+        }
       }
 
-      const fmDot = dotClass(c.tp_forms);
-      if (fmDot) pills += `<span class="pill"><span class="pill-dot ${fmDot}"></span> Fm</span>`;
+      const fmDot = dotClass(c.tp_forms, { hardOnly });
+      if (SUMMARY_FILTER.has('Fm') && fmDot) {
+        pills += `<span class="pill"><span class="pill-dot ${fmDot}"></span> Fm</span>`;
+        visible++;
+      }
 
       const ntDot = c.cbcr && c.cbcr.requirement_type ? 
         (c.cbcr.requirement_type.toUpperCase() === 'HARD' ? 'hard' : 'soft') : null;
-      if (ntDot) pills += `<span class="pill"><span class="pill-dot ${ntDot}"></span> Nt</span>`;
+      const showNt = hardOnly ? ntDot === 'hard' : Boolean(ntDot);
+      if (SUMMARY_FILTER.has('Nt') && showNt) {
+        pills += `<span class="pill"><span class="pill-dot ${ntDot || 'soft'}"></span> Nt</span>`;
+        visible++;
+      }
+
+      if (!visible) return; // skip this country if no filtered items matched
 
       row.innerHTML = `
         <div style="min-width:120px">
@@ -756,6 +843,30 @@ function alignDetailStacks(){
     applyCollapser(card);
   });
 
+  const equalize = (selector) => {
+    for (let i = 0; i < cards.length; i += 2) {
+      const rowCards = cards.slice(i, i + 2);
+      let max = 0;
+      // Reset to natural height for measurement
+      rowCards.forEach(card => {
+        const el = card.querySelector(selector);
+        if (el) el.style.minHeight = '';
+      });
+      rowCards.forEach(card => {
+        const el = card.querySelector(selector);
+        if (el) {
+          max = Math.max(max, el.offsetHeight);
+        }
+      });
+      rowCards.forEach(card => {
+        const el = card.querySelector(selector);
+        if (el && max) {
+          el.style.minHeight = `${max}px`;
+        }
+      });
+    }
+  };
+
   // Equalize height of paired sections for each row of two cards
   for (let i = 0; i < cards.length; i += 2) {
     const rowCards = cards.slice(i, i + 2);
@@ -773,6 +884,12 @@ function alignDetailStacks(){
       }
     });
   }
+
+  // Keep all major blocks aligned between paired cards
+  equalize('.section-master');
+  equalize('.section-forms');
+  equalize('.section-cbcr');
+  equalize('.section-cit');
 }
 
 function detailsCard(c){
@@ -792,7 +909,7 @@ function detailsCard(c){
       </div>
       <div class="hr"></div>
 
-      <div class="paired-sections">
+      <div class="paired-sections section-master">
         <div class="paired-content">
           <div class="grid-2">
             <div>
@@ -816,7 +933,7 @@ function detailsCard(c){
         <button class="more-btn" type="button">+ Show more</button>
       </div>
 
-      <div class="section">
+      <div class="section section-forms">
         <h3 class="section-header-secondary">TP Forms / Disclosures</h3>
         ${sectionList(c.tp_forms || [], (f) => {
           let text = f.name || '';
@@ -828,12 +945,12 @@ function detailsCard(c){
         })}
       </div>
 
-      <div class="section">
+      <div class="section section-cbcr">
         <h3 class="section-header-secondary">CbCR Notification</h3>
         ${c.cbcr ? `<div class="kv"><span>${escapeHtml(formatDeadline(c.cbcr))}</span></div>` : '<div class="small">—</div>'}
       </div>
 
-      <div class="section">
+      <div class="section section-cit">
         <h3 class="section-header-secondary">CIT Filing Deadlines</h3>
         ${formatCitDeadlines(c.cit_deadlines || [])}
       </div>
@@ -931,15 +1048,19 @@ function collectTimelineItems(country, showSoft){
 }
 
 function renderTimeline(){
-  const showSoft = document.getElementById('toggleSoft') ? document.getElementById('toggleSoft').checked : true;
+  const hardOnly = TIMELINE_REQTYPE === 'HARD';
+  const showSoft = hardOnly ? false : (document.getElementById('toggleSoft') ? document.getElementById('toggleSoft').checked : true);
 
   const itemsByMonth = Array.from({length: 12}, () => []);
-  
+
   (RULES.countries || []).forEach(c => {
     if (!SELECTED.size || SELECTED.has(c.name)) {
       collectTimelineItems(c, showSoft).forEach(it => {
         if (it.month >= 1 && it.month <= 12) {
-          itemsByMonth[it.month - 1].push(it);
+          // Filter by selected requirement types and requirement_type (hard-only)
+          if (TIMELINE_FILTER.has(it.type) && (!hardOnly || (it.reqType || '').toUpperCase() === 'HARD')) {
+            itemsByMonth[it.month - 1].push(it);
+          }
         }
       });
     }
@@ -975,17 +1096,43 @@ function renderTimeline(){
       empty.textContent = '—';
       col.appendChild(empty);
     } else {
+      // Group by country within the month to show the country once
+      const countryGroups = {};
       list.forEach(it => {
-        const row = document.createElement('div'); 
-        row.className = 'timeline-item';
-        row.innerHTML = `
-          <span class="${badgeClassFor(it.reqType)}" title="${escapeHtml(it.countryName)}" style="min-width: 80px; padding: 2px 8px;">
-            ${escapeHtml(it.countryName)}
-          </span>
-          ${chipFor(it.type)}
-          <span class="timeline-text">${escapeHtml(it.text)}</span>
-        `;
-        col.appendChild(row);
+        if (!countryGroups[it.countryName]) countryGroups[it.countryName] = [];
+        countryGroups[it.countryName].push(it);
+      });
+
+      const groupedCountries = Object.keys(countryGroups).sort();
+      groupedCountries.forEach((country, idx) => {
+        const items = countryGroups[country];
+
+        items.forEach((it, i) => {
+          const row = document.createElement('div'); 
+          row.className = 'timeline-item';
+          const badgeHtml = (i === 0)
+            ? `<span class="badge badge-soft timeline-badge" title="${escapeHtml(it.countryName)}">
+                 ${escapeHtml(it.countryName)}
+               </span>`
+            : `<span class="timeline-spacer"></span>`;
+
+          const chipHtml = `${chipFor(it.type, it.reqType)}`;
+          const textHtml = `<span class="timeline-text">${escapeHtml(it.text)}</span>`;
+
+          row.innerHTML = `
+            ${badgeHtml}
+            ${chipHtml}
+            ${textHtml}
+          `;
+          col.appendChild(row);
+        });
+
+        // Divider between countries when multiple groups exist
+        if (groupedCountries.length > 1 && idx < groupedCountries.length - 1) {
+          const divider = document.createElement('div');
+          divider.className = 'timeline-divider';
+          col.appendChild(divider);
+        }
       });
     }
     grid.appendChild(col);
@@ -994,14 +1141,61 @@ function renderTimeline(){
 
   const legend = document.getElementById('timelineLegend');
   if (legend) {
+    const filterBtn = (type, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-timeline-type="${type}">${label}</button>`;
+    const reqBtn = (req, label, cls) => `<button class="chip ${cls} chip-toggle" type="button" data-timeline-req="${req}">${label}</button>`;
     legend.innerHTML = `
-      <span class="badge badge-hard" style="min-width: 80px; padding: 2px 8px;">Angola</span> HARD &nbsp;
-      <span class="badge badge-soft" style="min-width: 80px; padding: 2px 8px;">Canada</span> SOFT &nbsp;
-      <span class="chip chip-MF">MF</span> Master File &nbsp;
-      <span class="chip chip-LF">LF</span> Local File/TPD &nbsp;
-      <span class="chip chip-Fm">Fm</span> TP Forms/Disclosures &nbsp;
-      <span class="chip chip-Nt">Nt</span> CbCR Notification
+      <span class="badge badge-soft" style="min-width: 80px; padding: 2px 8px;">Country</span> Country
+      ${filterBtn('ALL', 'All', 'chip-all')}
+      ${filterBtn('MF', 'MF', 'chip-MF')} Master File &nbsp;
+      ${filterBtn('LF', 'LF', 'chip-LF')} Local File/TPD &nbsp;
+      ${filterBtn('Fm', 'Fm', 'chip-Fm')} TP Forms/Disclosures &nbsp;
+      ${filterBtn('Nt', 'Nt', 'chip-Nt')} CbCR Notification &nbsp;
+      ${reqBtn('HARD', 'Hard', 'chip-hard')} Hard deadline
     `;
+
+    const updateButtons = () => {
+      legend.querySelectorAll('[data-timeline-type]').forEach(b => {
+        const t = b.getAttribute('data-timeline-type');
+        const isAll = t === 'ALL';
+        const active = (TIMELINE_REQTYPE === 'ALL') && (isAll ? TIMELINE_FILTER.size === TIMELINE_TYPES.length : TIMELINE_FILTER.has(t));
+        b.style.opacity = active ? '1' : '0.35';
+        b.style.outline = active ? '2px solid #0f172a' : 'none';
+      });
+      legend.querySelectorAll('[data-timeline-req]').forEach(b => {
+        const r = b.getAttribute('data-timeline-req');
+        const active = (TIMELINE_REQTYPE === r);
+        b.style.opacity = active ? '1' : '0.35';
+        b.style.outline = active ? '2px solid #0f172a' : 'none';
+      });
+    };
+
+    legend.querySelectorAll('[data-timeline-type]').forEach(btn => {
+      const type = btn.getAttribute('data-timeline-type');
+      btn.addEventListener('click', () => {
+        TIMELINE_REQTYPE = 'ALL';
+        if (type === 'ALL') {
+          TIMELINE_FILTER = new Set(TIMELINE_TYPES);
+        } else {
+          // Exclusive selection: pick only this type
+          TIMELINE_FILTER = new Set([type]);
+        }
+        updateButtons();
+        renderTimeline();
+      });
+    });
+
+    legend.querySelectorAll('[data-timeline-req]').forEach(btn => {
+      const req = btn.getAttribute('data-timeline-req');
+      btn.addEventListener('click', () => {
+        // Hard filter: apply to all requirement types
+        TIMELINE_REQTYPE = req;
+        TIMELINE_FILTER = new Set(TIMELINE_TYPES);
+        updateButtons();
+        renderTimeline();
+      });
+    });
+
+    updateButtons();
   }
 }
 
@@ -1290,7 +1484,7 @@ function paginateSummaryView() {
 
 function paginateDetailsView() {
   const detailsHost = document.getElementById('detailsHost');
-  const countriesPerPage = 2; // 2 detailed country cards per page for readability
+  const countriesPerPage = 1; // 1 detailed country card per page for presentation slides
   
   const cards = Array.from(detailsHost.querySelectorAll('.card'));
   pagesContent = [];
